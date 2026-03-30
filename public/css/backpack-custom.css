@@ -1,0 +1,25 @@
+/* Make create/edit forms narrower and centered */
+body[class*="crud-"] .container-fluid {
+  max-width: 980px;
+}
+
+body[class*="crud-"] .card {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 1200px) {
+  body[class*="crud-"] .container-fluid {
+    max-width: 900px;
+  }
+}
+
+/* Fix unexpected vertical offset in admin content */
+.page-body > main.container-fluid,
+.page-body > main.container-xxl {
+  padding-top: 0 !important;
+}
+
+.page-body .container-fluid.animated.fadeIn {
+  margin-top: 0 !important;
+}

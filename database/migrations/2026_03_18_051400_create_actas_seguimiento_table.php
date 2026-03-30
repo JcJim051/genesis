@@ -1,0 +1,24 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::create('actas_seguimiento', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('reincorporacion_id')->constrained('reincorporaciones')->cascadeOnDelete();
+            $table->date('fecha_acta')->nullable();
+            $table->text('contenido')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('actas_seguimiento');
+    }
+};
