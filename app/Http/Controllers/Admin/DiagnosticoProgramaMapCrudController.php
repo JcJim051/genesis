@@ -7,6 +7,7 @@ use App\Models\DiagnosticoProgramaMap;
 use App\Models\Programa;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+use Prologue\Alerts\Facades\Alert;
 
 class DiagnosticoProgramaMapCrudController extends CrudController
 {
@@ -29,6 +30,8 @@ class DiagnosticoProgramaMapCrudController extends CrudController
 
     protected function setupListOperation(): void
     {
+        $this->crud->addButtonFromView('top', 'default_rules', 'diagnostico_programa_defaults', 'beginning');
+
         CRUD::column('codigo_cie10')->label('CIE10');
         CRUD::column('diagnostico_texto')->label('Diagnóstico');
         CRUD::addColumn([
@@ -92,6 +95,71 @@ class DiagnosticoProgramaMapCrudController extends CrudController
     {
         $this->syncCie10ToRequest();
         return $this->traitUpdate();
+    }
+
+    public function defaults()
+    {
+        if (! backpack_user() || ! backpack_user()->hasRole('Administrador')) {
+            abort(403);
+        }
+
+        $rules = [
+            'osteomuscular' => ['M%', 'S%', 'T%'],
+            'visual' => ['H0%', 'H1%', 'H2%', 'H3%', 'H4%', 'H5%'],
+            'auditivo' => ['H6%', 'H7%', 'H8%', 'H9%'],
+            'psicosocial' => ['F%'],
+            'cardiovascular' => ['I%'],
+        ];
+
+        $created = 0;
+        $updated = 0;
+        $missing = [];
+
+        foreach ($rules as $slug => $cie10s) {
+            $programa = $this->findProgramaBySlugOrName($slug);
+            if (! $programa) {
+                $missing[] = $slug;
+                continue;
+            }
+
+            foreach ($cie10s as $code) {
+                $map = DiagnosticoProgramaMap::updateOrCreate(
+                    [
+                        'programa_id' => $programa->id,
+                        'codigo_cie10' => $code,
+                    ],
+                    [
+                        'diagnostico_texto' => null,
+                        'regla_activa' => true,
+                        'prioridad' => 10,
+                    ]
+                );
+
+                if ($map->wasRecentlyCreated) {
+                    $created++;
+                } else {
+                    $updated++;
+                }
+            }
+        }
+
+        Alert::add('success', "Reglas creadas/actualizadas. Nuevas: {$created}. Actualizadas: {$updated}.")->flash();
+        if (! empty($missing)) {
+            Alert::add('warning', 'No se encontraron programas: ' . implode(', ', $missing) . '.')->flash();
+        }
+
+        return redirect(backpack_url('diagnostico-programa'));
+    }
+
+    private function findProgramaBySlugOrName(string $slug): ?Programa
+    {
+        $programa = Programa::where('slug', $slug)->first();
+        if ($programa) {
+            return $programa;
+        }
+
+        $name = str_replace('-', ' ', $slug);
+        return Programa::where('nombre', 'like', '%' . $name . '%')->first();
     }
 
     private function syncCie10ToRequest(): void

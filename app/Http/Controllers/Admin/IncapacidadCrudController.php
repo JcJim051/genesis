@@ -17,6 +17,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use Prologue\Alerts\Facades\Alert;
 
 class IncapacidadCrudController extends CrudController
 {
@@ -38,6 +39,7 @@ class IncapacidadCrudController extends CrudController
     {
         $this->applyListScope();
 
+        $this->crud->addButtonFromView('top', 'reprocess', 'incapacidad_reprocess', 'beginning');
         $this->crud->addButtonFromView('top', 'import', 'incapacidad_import', 'beginning');
 
         CRUD::addColumn([
@@ -157,86 +159,110 @@ class IncapacidadCrudController extends CrudController
         }
 
         $count = 0;
-        foreach (array_slice($rows, 1) as $row) {
+        $errors = [];
+        $okRows = [];
+
+        foreach (array_slice($rows, 1) as $i => $row) {
+            $rowNumber = $i + 2;
             $row = array_values($row);
 
-            $cedula = trim((string) ($row[$idx['cedula']] ?? ''));
-            if ($cedula === '') {
-                continue;
-            }
+            try {
+                $cedula = trim((string) ($row[$idx['cedula']] ?? ''));
+                if ($cedula === '') {
+                    $errors[] = "Fila {$rowNumber}: CÉDULA vacía.";
+                    continue;
+                }
 
-            $fechaInicio = $this->parseExcelDate($row[$idx['fecha_inicio']] ?? null);
-            $fechaFin = $this->parseExcelDate($row[$idx['fecha_fin']] ?? null);
+                $fechaInicio = $this->parseExcelDate($row[$idx['fecha_inicio']] ?? null);
+                $fechaFin = $this->parseExcelDate($row[$idx['fecha_fin']] ?? null);
 
-            $codigo = trim((string) ($row[$idx['codigo_cie10']] ?? ''));
-            $diagnostico = trim((string) ($row[$idx['diagnostico_texto']] ?? ''));
-            $origen = trim((string) ($row[$idx['origen']] ?? ''));
-            $dias = $this->parseNumber($row[$idx['dias']] ?? null);
+                $codigo = trim((string) ($row[$idx['codigo_cie10']] ?? ''));
+                $diagnostico = trim((string) ($row[$idx['diagnostico_texto']] ?? ''));
+                $origen = trim((string) ($row[$idx['origen']] ?? ''));
+                $dias = $this->parseNumber($row[$idx['dias']] ?? null);
 
-            $payload = [
-                'empleado' => $this->valueAt($row, $idx['empleado']),
-                'entidad' => $this->valueAt($row, $idx['entidad']),
-                'fecha_inicial_real' => $this->parseExcelDate($row[$idx['fecha_inicio_real']] ?? null),
-                'fecha_fin_real' => $this->parseExcelDate($row[$idx['fecha_fin_real']] ?? null),
-                'valor' => $this->valueAt($row, $idx['valor']),
-                'observacion' => $this->valueAt($row, $idx['observacion']),
-                'planta' => $this->valueAt($row, $idx['planta']),
-                'cruce_tu_recobro' => $this->valueAt($row, $idx['cruce_tu_recobro']),
-                'cruce_axa_colpatria' => $this->valueAt($row, $idx['cruce_axa_colpatria']),
-                'diagnostico_texto' => $this->valueAt($row, $idx['diagnostico_texto']),
-            ];
+                $payload = [
+                    'empleado' => $this->valueAt($row, $idx['empleado']),
+                    'entidad' => $this->valueAt($row, $idx['entidad']),
+                    'fecha_inicial_real' => $this->parseExcelDate($row[$idx['fecha_inicio_real']] ?? null),
+                    'fecha_fin_real' => $this->parseExcelDate($row[$idx['fecha_fin_real']] ?? null),
+                    'valor' => $this->valueAt($row, $idx['valor']),
+                    'observacion' => $this->valueAt($row, $idx['observacion']),
+                    'planta' => $this->valueAt($row, $idx['planta']),
+                    'cruce_tu_recobro' => $this->valueAt($row, $idx['cruce_tu_recobro']),
+                    'cruce_axa_colpatria' => $this->valueAt($row, $idx['cruce_axa_colpatria']),
+                    'diagnostico_texto' => $this->valueAt($row, $idx['diagnostico_texto']),
+                ];
 
-            $empleado = Empleado::where('cedula', $cedula)->first();
-            if (! $empleado) {
-                [$clienteId, $sucursalId] = $this->resolveEmpresaPlanta($payload);
-                $empleado = Empleado::create([
-                    'cliente_id' => $clienteId,
-                    'sucursal_id' => $sucursalId,
-                    'nombre' => $payload['empleado'] ?? ('SIN NOMBRE ' . $cedula),
-                    'cedula' => $cedula,
-                ]);
-            }
-
-            $clienteId = $empleado?->cliente_id;
-            $sucursalId = $empleado?->sucursal_id;
-
-            if ($fechaInicio && $fechaFin) {
-                $incapacidad = Incapacidad::updateOrCreate(
-                    [
-                        'cedula' => $cedula,
-                        'fecha_inicio' => $fechaInicio,
-                        'fecha_fin' => $fechaFin,
-                    ],
-                    [
+                $empleado = Empleado::where('cedula', $cedula)->first();
+                if (! $empleado) {
+                    [$clienteId, $sucursalId] = $this->resolveEmpresaPlanta($payload);
+                    $empleado = Empleado::create([
                         'cliente_id' => $clienteId,
                         'sucursal_id' => $sucursalId,
+                        'nombre' => $payload['empleado'] ?? ('SIN NOMBRE ' . $cedula),
+                        'cedula' => $cedula,
+                    ]);
+                }
+
+                $clienteId = $empleado?->cliente_id;
+                $sucursalId = $empleado?->sucursal_id;
+
+                if ($fechaInicio && $fechaFin) {
+                    $incapacidad = Incapacidad::updateOrCreate(
+                        [
+                            'cedula' => $cedula,
+                            'fecha_inicio' => $fechaInicio,
+                            'fecha_fin' => $fechaFin,
+                        ],
+                        [
+                            'cliente_id' => $clienteId,
+                            'sucursal_id' => $sucursalId,
+                            'diagnostico' => $diagnostico,
+                            'codigo_cie10' => $codigo,
+                            'origen' => $origen,
+                            'dias_incapacidad' => $dias,
+                            'payload' => $payload,
+                        ]
+                    );
+                } else {
+                    $incapacidad = Incapacidad::create([
+                        'cedula' => $cedula,
+                        'cliente_id' => $clienteId,
+                        'sucursal_id' => $sucursalId,
+                        'fecha_inicio' => $fechaInicio,
+                        'fecha_fin' => $fechaFin,
                         'diagnostico' => $diagnostico,
                         'codigo_cie10' => $codigo,
                         'origen' => $origen,
                         'dias_incapacidad' => $dias,
                         'payload' => $payload,
-                    ]
-                );
-            } else {
-                $incapacidad = Incapacidad::create([
-                    'cedula' => $cedula,
-                    'cliente_id' => $clienteId,
-                    'sucursal_id' => $sucursalId,
-                    'fecha_inicio' => $fechaInicio,
-                    'fecha_fin' => $fechaFin,
-                    'diagnostico' => $diagnostico,
-                    'codigo_cie10' => $codigo,
-                    'origen' => $origen,
-                    'dias_incapacidad' => $dias,
-                    'payload' => $payload,
-                ]);
-            }
+                    ]);
+                }
 
-            $this->applyProgramaSuggestionFor($incapacidad);
-            $count++;
+                $this->applyProgramaSuggestionFor($incapacidad);
+                $count++;
+                $okRows[] = $rowNumber;
+            } catch (\Throwable $e) {
+                $errors[] = "Fila {$rowNumber}: " . $e->getMessage();
+            }
         }
 
-        return redirect(backpack_url('incapacidad'))->with('success', "Importadas: {$count} incapacidades.");
+        Alert::add('success', "Importadas: {$count} incapacidades.")->flash();
+
+        if (! empty($okRows)) {
+            $preview = array_slice($okRows, 0, 20);
+            $more = count($okRows) > 20 ? ('<br>... y ' . (count($okRows) - 20) . ' más.') : '';
+            Alert::add('info', "Filas OK: " . implode(', ', $preview) . $more)->flash();
+        }
+
+        if (! empty($errors)) {
+            $preview = array_slice($errors, 0, 20);
+            $more = count($errors) > 20 ? ('<br>... y ' . (count($errors) - 20) . ' más.') : '';
+            Alert::add('warning', "Errores de importación:<br>" . implode('<br>', $preview) . $more)->flash();
+        }
+
+        return redirect(backpack_url('incapacidad'));
     }
 
     public function template()
@@ -273,6 +299,36 @@ class IncapacidadCrudController extends CrudController
         return response()->download($tmp, 'plantilla_incapacidades.xlsx')->deleteFileAfterSend(true);
     }
 
+    public function reprocess()
+    {
+        $this->ensureCanImport();
+
+        $total = 0;
+        $updated = 0;
+
+        Incapacidad::query()->chunk(200, function ($rows) use (&$total, &$updated) {
+            foreach ($rows as $inc) {
+                $before = ProgramaCaso::where('empleado_id', optional(Empleado::where('cedula', $inc->cedula)->first())->id)
+                    ->where('origen', 'incapacidad')
+                    ->count();
+
+                $this->applyProgramaSuggestionFor($inc);
+
+                $after = ProgramaCaso::where('empleado_id', optional(Empleado::where('cedula', $inc->cedula)->first())->id)
+                    ->where('origen', 'incapacidad')
+                    ->count();
+
+                $total++;
+                if ($after > $before) {
+                    $updated++;
+                }
+            }
+        });
+
+        Alert::add('success', "Reprocesadas {$total} incapacidades. Casos nuevos: {$updated}.")->flash();
+        return redirect(backpack_url('incapacidad'));
+    }
+
     private function applyProgramaSuggestionFor(?Incapacidad $entry): void
     {
         if (! $entry) {
@@ -287,7 +343,8 @@ class IncapacidadCrudController extends CrudController
         $map = DiagnosticoProgramaMap::query()
             ->where('regla_activa', true)
             ->when($entry->codigo_cie10, function ($q) use ($entry) {
-                $q->where('codigo_cie10', $entry->codigo_cie10);
+                // Allow wildcard rules stored in DB (e.g. M%, H0%)
+                $q->whereRaw('? like codigo_cie10', [$entry->codigo_cie10]);
             })
             ->when(! $entry->codigo_cie10 && $entry->diagnostico, function ($q) use ($entry) {
                 $q->where('diagnostico_texto', 'like', '%' . $entry->diagnostico . '%');

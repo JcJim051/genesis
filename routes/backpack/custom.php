@@ -48,6 +48,9 @@ Route::group([
     Route::post('empleado/import', [EmpleadoCrudController::class, 'import']);
     Route::get('empleado/template', [EmpleadoCrudController::class, 'template']);
     Route::crud('empleado-cargo', EmpleadoCargoCrudController::class);
+    Route::get('empleado-cargo/import', [EmpleadoCargoCrudController::class, 'importForm']);
+    Route::post('empleado-cargo/import', [EmpleadoCargoCrudController::class, 'import']);
+    Route::get('empleado-cargo/template', [EmpleadoCargoCrudController::class, 'template']);
     Route::crud('empleado-area', EmpleadoAreaCrudController::class);
     Route::crud('programa', ProgramaCrudController::class);
     Route::crud('cie10', Cie10CrudController::class);
@@ -59,10 +62,12 @@ Route::group([
     Route::get('programa-caso/{id}/reject', [ProgramaCasoCrudController::class, 'reject']);
     Route::get('programa-caso/{id}/retirar', [ProgramaCasoCrudController::class, 'retirar']);
     Route::crud('diagnostico-programa', DiagnosticoProgramaMapCrudController::class);
+    Route::get('diagnostico-programa/defaults', [DiagnosticoProgramaMapCrudController::class, 'defaults']);
     Route::crud('incapacidad', IncapacidadCrudController::class);
     Route::get('incapacidad/import', [IncapacidadCrudController::class, 'importForm']);
     Route::post('incapacidad/import', [IncapacidadCrudController::class, 'import']);
     Route::get('incapacidad/template', [IncapacidadCrudController::class, 'template']);
+    Route::get('incapacidad/reprocess', [IncapacidadCrudController::class, 'reprocess']);
     Route::crud('examen', ExamenCrudController::class);
     Route::crud('encuesta', EncuestaCrudController::class);
     Route::crud('encuesta-pregunta', EncuestaPreguntaCrudController::class);
