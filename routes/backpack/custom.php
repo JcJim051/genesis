@@ -44,6 +44,9 @@ Route::group([
     Route::crud('sucursal', SucursalCrudController::class);
     Route::crud('empleado', EmpleadoCrudController::class);
     Route::get('empleado/lookup', [EmpleadoCrudController::class, 'lookup']);
+    Route::get('empleado/import', [EmpleadoCrudController::class, 'importForm']);
+    Route::post('empleado/import', [EmpleadoCrudController::class, 'import']);
+    Route::get('empleado/template', [EmpleadoCrudController::class, 'template']);
     Route::crud('empleado-cargo', EmpleadoCargoCrudController::class);
     Route::crud('empleado-area', EmpleadoAreaCrudController::class);
     Route::crud('programa', ProgramaCrudController::class);

@@ -29,6 +29,8 @@ class ProgramaCasoCrudController extends CrudController
         $this->applyListScope();
         $this->crud->query->with('incapacidades');
 
+        $this->setCaseIndicators();
+
         $programaId = request()->get('programa_id');
         if ($programaId) {
             $programa = Programa::find($programaId);
@@ -153,6 +155,45 @@ class ProgramaCasoCrudController extends CrudController
         }
         CRUD::column('origen');
         CRUD::column('sugerido_por');
+    }
+
+    private function setCaseIndicators(): void
+    {
+        $programaId = request()->get('programa_id');
+
+        $baseQuery = ProgramaCaso::query();
+        if ($programaId) {
+            $baseQuery->where('programa_id', $programaId);
+        }
+
+        $empleadosQuery = Empleado::query()->whereNull('fecha_retiro');
+
+        if (! backpack_user()->hasRole('Administrador')) {
+            if (backpack_user()->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
+                $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+                $empleadoIds = Empleado::whereIn('cliente_id', $empresaIds ?: [0])->pluck('id');
+                $baseQuery->whereIn('empleado_id', $empleadoIds);
+                $empleadosQuery->whereIn('cliente_id', $empresaIds ?: [0]);
+            } elseif (backpack_user()->hasAnyRole(['Coordinador de planta', 'Asesor externo planta'])) {
+                $plantaIds = backpack_user()->plantas()->pluck('sucursals.id')->all();
+                $empleadoIds = Empleado::whereIn('sucursal_id', $plantaIds ?: [0])->pluck('id');
+                $baseQuery->whereIn('empleado_id', $empleadoIds);
+                $empleadosQuery->whereIn('sucursal_id', $plantaIds ?: [0]);
+            } else {
+                $baseQuery->whereRaw('1 = 0');
+                $empleadosQuery->whereRaw('1 = 0');
+            }
+        }
+
+        $confirmados = (clone $baseQuery)->where('estado', 'Confirmado')->count();
+        $probables = (clone $baseQuery)->where('estado', 'Probable')->count();
+        $activos = $empleadosQuery->count();
+
+        $this->crud->setOperationSetting('case_indicators', [
+            'confirmados' => $confirmados,
+            'probables' => $probables,
+            'activos' => $activos,
+        ]);
     }
 
     protected function setupCreateOperation(): void
