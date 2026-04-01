@@ -18,6 +18,8 @@ class Pausa extends Model
         'video_url',
         'tiempo_minimo_segundos',
         'activa',
+        'cliente_id',
+        'sucursal_id',
     ];
 
     protected $casts = [
@@ -27,5 +29,15 @@ class Pausa extends Model
     public function formulario()
     {
         return $this->hasOne(PausaFormulario::class, 'pausa_id');
+    }
+
+    public function cliente()
+    {
+        return $this->belongsTo(Cliente::class, 'cliente_id');
+    }
+
+    public function sucursal()
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
     }
 }

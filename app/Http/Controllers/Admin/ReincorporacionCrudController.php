@@ -73,10 +73,8 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'empleado_autofill',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-12'],
+            'wrapper' => ['class' => 'form-group col-lg-6 col-md-12'],
         ]);
-
-        $this->addActaFields();
 
         CRUD::field('evidencia_pdf_path')
             ->type('upload_local')
@@ -84,7 +82,10 @@ class ReincorporacionCrudController extends CrudController
             ->upload(true)
             ->disk('public')
             ->prefix('reincorporaciones/evidencias')
-            ->wrapper(['class' => 'form-group col-md-12']);
+            ->hint('Cargue aquí el PDF firmado para confirmar la reincorporación.')
+            ->wrapper(['class' => 'form-group col-lg-3 col-md-6']);
+
+        $this->addActaFields();
     }
 
     protected function setupUpdateOperation(): void
@@ -94,15 +95,16 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'hidden',
         ]);
 
-        $this->addActaFields();
-
         CRUD::field('evidencia_pdf_path')
             ->type('upload_local')
             ->label('Evidencia (PDF firmado)')
             ->upload(true)
             ->disk('public')
             ->prefix('reincorporaciones/evidencias')
-            ->wrapper(['class' => 'form-group col-md-12']);
+            ->hint('Cargue aquí el PDF firmado para confirmar la reincorporación.')
+            ->wrapper(['class' => 'form-group col-lg-3 col-md-6']);
+
+        $this->addActaFields();
     }
 
     public function store()
@@ -198,7 +200,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('fecha_acta', $fmtDate($entry?->fecha_ingreso) ?: now()->format('Y-m-d')),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -209,7 +211,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('nombre_completo', $empleado?->nombre ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -220,7 +222,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('identificacion', $empleado?->cedula ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -231,7 +233,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('fecha_nacimiento', $fmtDate($empleado?->fecha_nacimiento)),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -242,7 +244,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('edad', $empleado?->edad ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -253,7 +255,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('genero', $empleado?->genero ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -264,7 +266,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('lateralidad', $empleado?->lateralidad ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -275,7 +277,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('eps', $empleado?->eps ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -286,7 +288,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('arl', $empleado?->arl ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -297,7 +299,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('fondo_pensiones', $empleado?->fondo_pensiones ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -308,7 +310,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('telefono_contacto', $empleado?->telefono ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -319,7 +321,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('correo_electronico', $empleado?->correo_electronico ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -330,7 +332,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('direccion_residencia', $empleado?->direccion ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -341,7 +343,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('fecha_ingreso_empresa', $fmtDate($empleado?->fecha_ingreso)),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -352,7 +354,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('cargo_actual', $empleado?->getCargoActual() ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -363,7 +365,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('antiguedad_cargo', $empleado?->getAntiguedadCargoActual() ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -378,7 +380,7 @@ class ReincorporacionCrudController extends CrudController
             'allows_null' => true,
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -387,7 +389,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'date',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -396,7 +398,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'date',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -406,7 +408,7 @@ class ReincorporacionCrudController extends CrudController
             'attributes' => ['rows' => 4],
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-12'],
+            'wrapper' => ['class' => 'form-group col-lg-6 col-md-12'],
         ]);
 
         CRUD::addField([
@@ -416,7 +418,7 @@ class ReincorporacionCrudController extends CrudController
             'attributes' => ['rows' => 4],
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-12'],
+            'wrapper' => ['class' => 'form-group col-lg-6 col-md-12'],
         ]);
 
         CRUD::addField([
@@ -433,7 +435,7 @@ class ReincorporacionCrudController extends CrudController
             'allows_null' => true,
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-12'],
+            'wrapper' => ['class' => 'form-group col-lg-6 col-md-12'],
         ]);
 
         CRUD::addField([
@@ -444,7 +446,7 @@ class ReincorporacionCrudController extends CrudController
             'allows_null' => true,
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -454,7 +456,7 @@ class ReincorporacionCrudController extends CrudController
             'attributes' => ['rows' => 3],
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-8'],
+            'wrapper' => ['class' => 'form-group col-lg-6 col-md-12'],
         ]);
 
         CRUD::addField([
@@ -465,7 +467,7 @@ class ReincorporacionCrudController extends CrudController
             'allows_null' => true,
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -474,7 +476,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'text',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -485,7 +487,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('area_reintegra', $empleado?->getAreaActual() ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -495,7 +497,7 @@ class ReincorporacionCrudController extends CrudController
             'attributes' => ['rows' => 3],
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-12'],
+            'wrapper' => ['class' => 'form-group col-lg-6 col-md-12'],
         ]);
 
         CRUD::addField([
@@ -504,7 +506,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'date',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -513,7 +515,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'text',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
         CRUD::addField([
             'name' => 'asistente_jefe_cedula',
@@ -521,7 +523,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'text',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
         CRUD::addField([
             'name' => 'asistente_jefe_cargo',
@@ -529,7 +531,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'text',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -538,7 +540,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'text',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
         CRUD::addField([
             'name' => 'asistente_sst_cedula',
@@ -546,7 +548,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'text',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
         CRUD::addField([
             'name' => 'asistente_sst_cargo',
@@ -554,7 +556,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'text',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -565,7 +567,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('asistente_trabajador_nombre', $empleado?->nombre ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
         CRUD::addField([
             'name' => 'asistente_trabajador_cedula',
@@ -575,7 +577,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('asistente_trabajador_cedula', $empleado?->cedula ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
         CRUD::addField([
             'name' => 'asistente_trabajador_cargo',
@@ -585,7 +587,7 @@ class ReincorporacionCrudController extends CrudController
             'value' => $val('asistente_trabajador_cargo', $empleado?->getCargoActual() ?? ''),
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
 
         CRUD::addField([
@@ -594,7 +596,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'text',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
         CRUD::addField([
             'name' => 'asistente_otro_cedula',
@@ -602,7 +604,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'text',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
         CRUD::addField([
             'name' => 'asistente_otro_cargo',
@@ -610,7 +612,7 @@ class ReincorporacionCrudController extends CrudController
             'type' => 'text',
             'fake' => true,
             'store_in' => 'acta_payload',
-            'wrapper' => ['class' => 'form-group col-md-3'],
+            'wrapper' => ['class' => 'form-group col-lg-3 col-md-6'],
         ]);
     }
 

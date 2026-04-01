@@ -17,6 +17,7 @@
         'programaCasos.incapacidades',
         'reincorporaciones',
         'pausaParticipaciones.envio.pausa',
+        'encuestaRespuestas.encuesta',
     ]);
 
     $fmtDate = function ($value) {
@@ -41,6 +42,7 @@
     $reincorporaciones = $entry->reincorporaciones->sortByDesc('fecha_ingreso')->values();
     $totalCasos = $programaCasos->count() + $reincorporaciones->count();
     $pausas = $entry->pausaParticipaciones->sortByDesc('created_at')->values();
+    $encuestas = $entry->encuestaRespuestas->sortByDesc('created_at')->values();
 @endphp
 
 @section('header')
@@ -248,6 +250,46 @@
                                     <td>{{ $p->respondido_en?->format('Y-m-d H:i') ?? $p->created_at?->format('Y-m-d H:i') }}</td>
                                     <td>
                                         <a class="btn btn-sm btn-outline-primary" href="{{ backpack_url('pausa-participacion/' . $p->id . '/show') }}">
+                                            Ver detalle
+                                        </a>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+        </div>
+
+        <div class="card p-4 mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Encuestas contestadas</h5>
+                <span class="text-muted">Total: {{ $encuestas->count() }}</span>
+            </div>
+
+            @if ($encuestas->isEmpty())
+                <div class="text-muted">Esta persona no tiene encuestas contestadas.</div>
+            @else
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Encuesta</th>
+                                <th>Estado</th>
+                                <th>Puntaje</th>
+                                <th>Fecha</th>
+                                <th>Detalle</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($encuestas as $r)
+                                <tr>
+                                    <td>{{ $r->encuesta?->titulo }}</td>
+                                    <td>{{ $r->estado }}</td>
+                                    <td>{{ $r->puntaje_total }}</td>
+                                    <td>{{ $r->respondido_en?->format('Y-m-d H:i') ?? $r->created_at?->format('Y-m-d H:i') }}</td>
+                                    <td>
+                                        <a class="btn btn-sm btn-outline-primary" href="{{ backpack_url('encuesta-participacion/' . $r->id . '/show') }}">
                                             Ver detalle
                                         </a>
                                     </td>

@@ -16,6 +16,8 @@ class Encuesta extends Model
         'programa_id',
         'umbral_puntaje',
         'activa',
+        'cliente_id',
+        'sucursal_id',
     ];
 
     protected $casts = [
@@ -25,6 +27,16 @@ class Encuesta extends Model
     public function programa()
     {
         return $this->belongsTo(Programa::class);
+    }
+
+    public function cliente()
+    {
+        return $this->belongsTo(Cliente::class, 'cliente_id');
+    }
+
+    public function sucursal()
+    {
+        return $this->belongsTo(Sucursal::class, 'sucursal_id');
     }
 
     public function preguntas()

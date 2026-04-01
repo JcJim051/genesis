@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\EncuestaCrudController;
 use App\Http\Controllers\Admin\EncuestaEnvioCrudController;
 use App\Http\Controllers\Admin\EncuestaOpcionCrudController;
 use App\Http\Controllers\Admin\EncuestaPreguntaCrudController;
+use App\Http\Controllers\Admin\EncuestaParticipacionCrudController;
 use App\Http\Controllers\Admin\ExamenCrudController;
 use App\Http\Controllers\Admin\EmpleadoAreaCrudController;
 use App\Http\Controllers\Admin\EmpleadoCargoCrudController;
@@ -81,6 +82,8 @@ Route::group([
     Route::crud('encuesta-envio', EncuestaEnvioCrudController::class);
     Route::get('encuesta-envio/{id}/procesar', [EncuestaEnvioCrudController::class, 'procesar'])->whereNumber('id');
     Route::post('encuesta-envio/{id}/procesar', [EncuestaEnvioCrudController::class, 'procesar'])->whereNumber('id');
+    Route::crud('encuesta-participacion', EncuestaParticipacionCrudController::class);
+    Route::get('encuesta-participacion/export', [EncuestaParticipacionCrudController::class, 'export']);
     Route::crud('encuesta-alerta', EncuestaAlertaCrudController::class);
     Route::crud('pausa', PausaCrudController::class);
     Route::get('pausa/builder', [PausaCrudController::class, 'builder']);
@@ -93,6 +96,7 @@ Route::group([
     Route::get('pausa-envio/{id}/procesar', [PausaEnvioCrudController::class, 'procesar'])->whereNumber('id');
     Route::post('pausa-envio/{id}/procesar', [PausaEnvioCrudController::class, 'procesar'])->whereNumber('id');
     Route::crud('pausa-participacion', PausaParticipacionCrudController::class);
+    Route::get('pausa-participacion/export', [PausaParticipacionCrudController::class, 'export']);
     Route::crud('reincorporacion', ReincorporacionCrudController::class);
     Route::get('reincorporacion/{id}/acta', [ReincorporacionCrudController::class, 'acta'])->whereNumber('id');
     Route::get('reincorporacion/{id}/acta-pdf', [ReincorporacionCrudController::class, 'pdf']);

@@ -69,6 +69,11 @@ class Empleado extends Model
         return $this->hasMany(PausaParticipacion::class, 'empleado_id');
     }
 
+    public function encuestaRespuestas()
+    {
+        return $this->hasMany(EncuestaRespuesta::class, 'empleado_id');
+    }
+
     public function telegramActivationLink()
     {
         return $this->hasOne(TelegramActivationLink::class, 'empleado_id');

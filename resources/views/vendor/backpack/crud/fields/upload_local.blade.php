@@ -50,7 +50,6 @@
 @include('crud::fields.inc.wrapper_end')
 
 @push('crud_fields_styles')
-  @bassetBlock('backpack/crud/fields/upload-field.css')
     <style type="text/css">
         .existing-file {
             border: 1px solid rgba(0,40,100,.12);
@@ -107,13 +106,19 @@
           padding: 0.375rem 0.75rem;
           font-weight: 400;
           line-height: 1.5;
+          border: 1px solid rgba(0,40,100,.12);
+          border-radius: 0.375rem;
+          background: #fff;
+        }
+
+        .backstrap-file-label::after {
+          background: #f8f9fa;
+          border-left: 1px solid rgba(0,40,100,.12);
         }
     </style>
-  @endbassetBlock
 @endpush
 
 @push('crud_fields_scripts')
-  @bassetBlock('backpack/crud/fields/upload-field.js')
     <script>
       function bpFieldInitUploadElement(element) {
         var fieldName = element.attr('data-field-name');
@@ -134,5 +139,4 @@
         });
       }
     </script>
-  @endbassetBlock
 @endpush

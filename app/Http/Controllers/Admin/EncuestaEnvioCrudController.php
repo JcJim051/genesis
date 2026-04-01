@@ -131,6 +131,7 @@ class EncuestaEnvioCrudController extends CrudController
     public function store()
     {
         $response = $this->traitStore();
+        $this->enforceEncuestaScope();
         $this->crearRespuestasSiCorresponde(true, ['mode' => 'all', 'only_incomplete' => true]);
         return $response;
     }
@@ -138,6 +139,7 @@ class EncuestaEnvioCrudController extends CrudController
     public function update()
     {
         $response = $this->traitUpdate();
+        $this->enforceEncuestaScope();
         $this->crearRespuestasSiCorresponde(true, ['mode' => 'all', 'only_incomplete' => true]);
         return $response;
     }
@@ -235,7 +237,7 @@ class EncuestaEnvioCrudController extends CrudController
                 $query->where('sucursal_id', $envio->sucursal_id);
             }
 
-            $empleados = $query->get(['id']);
+            $empleados = $query->get(['id', 'telegram_chat_id']);
 
             foreach ($empleados as $empleado) {
                 $resp = EncuestaRespuesta::firstOrCreate([
@@ -270,6 +272,31 @@ class EncuestaEnvioCrudController extends CrudController
             'programado_modo' => null,
             'programado_solo_no_completados' => $onlyIncomplete,
         ]);
+    }
+
+    private function enforceEncuestaScope(): void
+    {
+        $envio = $this->crud->entry;
+        if (! $envio) {
+            return;
+        }
+
+        $encuesta = $envio->encuesta;
+        if (! $encuesta) {
+            return;
+        }
+
+        $updates = [];
+        if ($encuesta->cliente_id) {
+            $updates['cliente_id'] = $encuesta->cliente_id;
+        }
+        if ($encuesta->sucursal_id) {
+            $updates['sucursal_id'] = $encuesta->sucursal_id;
+        }
+
+        if (! empty($updates)) {
+            $envio->update($updates);
+        }
     }
 
     private function applyAccessRules(): void

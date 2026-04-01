@@ -27,6 +27,24 @@
                         <label class="form-label">Umbral puntaje</label>
                         <input type="number" class="form-control" name="umbral_puntaje" value="{{ old('umbral_puntaje', $encuesta->umbral_puntaje) }}">
                     </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Empresa (alcance)</label>
+                        <select class="form-control" name="cliente_id">
+                            <option value="">Todas</option>
+                            @foreach ($clientes as $cliente)
+                                <option value="{{ $cliente->id }}" @selected(old('cliente_id', $encuesta->cliente_id) == $cliente->id)>{{ $cliente->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Planta (alcance)</label>
+                        <select class="form-control" name="sucursal_id">
+                            <option value="">Todas</option>
+                            @foreach ($sucursales as $sucursal)
+                                <option value="{{ $sucursal->id }}" @selected(old('sucursal_id', $encuesta->sucursal_id) == $sucursal->id)>{{ $sucursal->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="col-md-4 mb-3 d-flex align-items-end">
                         <label class="form-check">
                             <input type="checkbox" class="form-check-input" name="activa" value="1" @checked(old('activa', $encuesta->activa))>

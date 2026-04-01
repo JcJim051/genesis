@@ -6,6 +6,8 @@ use App\Models\Pausa;
 use App\Models\PausaFormulario;
 use App\Models\PausaPregunta;
 use App\Models\PausaOpcion;
+use App\Models\Cliente;
+use App\Models\Sucursal;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use Illuminate\Http\Request;
@@ -92,6 +94,16 @@ class PausaCrudController extends CrudController
         $pausa = $id ? Pausa::findOrFail($id) : new Pausa();
         $questions = [];
 
+        $clientesQuery = Cliente::orderBy('nombre');
+        $sucursalesQuery = Sucursal::orderBy('nombre');
+        if (! backpack_user()->hasRole('Administrador')) {
+            $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+            $clientesQuery->whereIn('id', $empresaIds ?: [0]);
+            $sucursalesQuery->whereIn('cliente_id', $empresaIds ?: [0]);
+        }
+        $clientes = $clientesQuery->get();
+        $sucursales = $sucursalesQuery->get();
+
         if ($pausa->exists) {
             $formulario = $pausa->formulario ?: $pausa->formulario()->create();
             $all = PausaPregunta::with('opciones')
@@ -125,6 +137,8 @@ class PausaCrudController extends CrudController
 
         return view('admin.pausas.builder', [
             'pausa' => $pausa,
+            'clientes' => $clientes,
+            'sucursales' => $sucursales,
             'questions' => $questions,
         ]);
     }
@@ -138,9 +152,17 @@ class PausaCrudController extends CrudController
             'video_url' => 'nullable|string',
             'tiempo_minimo_segundos' => 'nullable|numeric',
             'activa' => 'nullable|boolean',
+            'cliente_id' => 'nullable|integer',
+            'sucursal_id' => 'nullable|integer',
         ]);
 
         $pausa = $id ? Pausa::findOrFail($id) : new Pausa();
+        $clienteId = $data['cliente_id'] ?? null;
+        $sucursalId = $data['sucursal_id'] ?? null;
+        if ($sucursalId && ! $clienteId) {
+            $clienteId = Sucursal::whereKey($sucursalId)->value('cliente_id');
+        }
+
         $pausa->fill([
             'nombre' => $data['nombre'],
             'descripcion' => $data['descripcion'] ?? null,
@@ -148,6 +170,8 @@ class PausaCrudController extends CrudController
             'video_url' => $data['video_url'] ?? null,
             'tiempo_minimo_segundos' => $data['tiempo_minimo_segundos'] ?? 60,
             'activa' => (bool) ($data['activa'] ?? false),
+            'cliente_id' => $clienteId,
+            'sucursal_id' => $sucursalId,
         ]);
         $pausa->save();
 

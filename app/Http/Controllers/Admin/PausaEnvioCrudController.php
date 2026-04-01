@@ -112,6 +112,7 @@ class PausaEnvioCrudController extends CrudController
     public function store()
     {
         $response = $this->traitStore();
+        $this->enforcePausaScope();
         $this->crearParticipacionesFor($this->crud->entry, [
             'force' => true,
             'mode' => 'all',
@@ -123,6 +124,7 @@ class PausaEnvioCrudController extends CrudController
     public function update()
     {
         $response = $this->traitUpdate();
+        $this->enforcePausaScope();
         $this->crearParticipacionesFor($this->crud->entry, [
             'force' => true,
             'mode' => 'all',
@@ -261,5 +263,30 @@ class PausaEnvioCrudController extends CrudController
             'programado_modo' => null,
             'programado_solo_no_completados' => $onlyIncomplete,
         ]);
+    }
+
+    private function enforcePausaScope(): void
+    {
+        $envio = $this->crud->entry;
+        if (! $envio) {
+            return;
+        }
+
+        $pausa = $envio->pausa;
+        if (! $pausa) {
+            return;
+        }
+
+        $updates = [];
+        if ($pausa->cliente_id) {
+            $updates['cliente_id'] = $pausa->cliente_id;
+        }
+        if ($pausa->sucursal_id) {
+            $updates['sucursal_id'] = $pausa->sucursal_id;
+        }
+
+        if (! empty($updates)) {
+            $envio->update($updates);
+        }
     }
 }

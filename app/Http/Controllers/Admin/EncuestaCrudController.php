@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Admin;
 use App\Models\Encuesta;
 use App\Models\EncuestaPregunta;
 use App\Models\EncuestaOpcion;
+use App\Models\Cliente;
 use App\Models\Programa;
+use App\Models\Sucursal;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use Illuminate\Http\Request;
@@ -78,6 +80,16 @@ class EncuestaCrudController extends CrudController
         $encuesta = $id ? Encuesta::findOrFail($id) : new Encuesta();
         $programas = Programa::orderBy('nombre')->get();
 
+        $clientesQuery = Cliente::orderBy('nombre');
+        $sucursalesQuery = Sucursal::orderBy('nombre');
+        if (! backpack_user()->hasRole('Administrador')) {
+            $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+            $clientesQuery->whereIn('id', $empresaIds ?: [0]);
+            $sucursalesQuery->whereIn('cliente_id', $empresaIds ?: [0]);
+        }
+        $clientes = $clientesQuery->get();
+        $sucursales = $sucursalesQuery->get();
+
         $questions = [];
         if ($encuesta->exists) {
             $all = EncuestaPregunta::with('opciones')
@@ -143,6 +155,8 @@ class EncuestaCrudController extends CrudController
         return view('admin.encuestas.builder', [
             'encuesta' => $encuesta,
             'programas' => $programas,
+            'clientes' => $clientes,
+            'sucursales' => $sucursales,
             'questions' => $questions,
         ]);
     }
@@ -158,14 +172,23 @@ class EncuestaCrudController extends CrudController
             'programa_id' => 'required|integer',
             'umbral_puntaje' => 'nullable|numeric',
             'activa' => 'nullable|boolean',
+            'cliente_id' => 'nullable|integer',
+            'sucursal_id' => 'nullable|integer',
         ]);
 
         $encuesta = $id ? Encuesta::findOrFail($id) : new Encuesta();
+        $clienteId = $data['cliente_id'] ?? null;
+        $sucursalId = $data['sucursal_id'] ?? null;
+        if ($sucursalId && ! $clienteId) {
+            $clienteId = Sucursal::whereKey($sucursalId)->value('cliente_id');
+        }
         $encuesta->fill([
             'titulo' => $data['titulo'],
             'programa_id' => $data['programa_id'],
             'umbral_puntaje' => $data['umbral_puntaje'] ?? 0,
             'activa' => (bool) ($data['activa'] ?? false),
+            'cliente_id' => $clienteId,
+            'sucursal_id' => $sucursalId,
         ]);
         $encuesta->save();
 

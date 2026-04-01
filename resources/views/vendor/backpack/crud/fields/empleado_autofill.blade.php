@@ -5,11 +5,6 @@
         <input type="text" class="form-control" id="buscar-cedula-input" placeholder="Ingrese cédula" />
         <button class="btn btn-primary" type="button" id="buscar-cedula-btn">Buscar</button>
     </div>
-    <label>Buscar persona por nombre</label>
-    <div class="input-group">
-        <input type="text" class="form-control" id="buscar-nombre-input" placeholder="Ingrese nombre" />
-        <button class="btn btn-secondary" type="button" id="buscar-nombre-btn">Buscar</button>
-    </div>
     <small class="text-muted">Al buscar, se diligencian automáticamente los datos personales del acta.</small>
 @include('crud::fields.inc.wrapper_end')
 
@@ -62,22 +57,6 @@
             var cedula = document.getElementById('buscar-cedula-input').value || '';
             if (!cedula) return;
             lookup({ cedula: cedula }).then(function(data) {
-                fillFields(data);
-                var hidden = document.querySelector('[name="empleado_id"]');
-                if (hidden) {
-                    hidden.value = data.id;
-                    hidden.dispatchEvent(new Event('change'));
-                }
-            }).catch(function(){});
-        });
-    }
-
-    var btnNombre = document.getElementById('buscar-nombre-btn');
-    if (btnNombre) {
-        btnNombre.addEventListener('click', function() {
-            var nombre = document.getElementById('buscar-nombre-input').value || '';
-            if (!nombre) return;
-            lookup({ nombre: nombre }).then(function(data) {
                 fillFields(data);
                 var hidden = document.querySelector('[name="empleado_id"]');
                 if (hidden) {

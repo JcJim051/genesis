@@ -28,6 +28,24 @@
                         <input type="url" class="form-control" name="video_url" value="{{ old('video_url', $pausa->video_url) }}">
                     </div>
                     <div class="col-md-4 mb-3">
+                        <label class="form-label">Empresa (alcance)</label>
+                        <select class="form-control" name="cliente_id">
+                            <option value="">Todas</option>
+                            @foreach ($clientes as $cliente)
+                                <option value="{{ $cliente->id }}" @selected(old('cliente_id', $pausa->cliente_id) == $cliente->id)>{{ $cliente->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Planta (alcance)</label>
+                        <select class="form-control" name="sucursal_id">
+                            <option value="">Todas</option>
+                            @foreach ($sucursales as $sucursal)
+                                <option value="{{ $sucursal->id }}" @selected(old('sucursal_id', $pausa->sucursal_id) == $sucursal->id)>{{ $sucursal->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4 mb-3">
                         <label class="form-label">Tiempo mínimo (segundos)</label>
                         <input type="number" class="form-control" name="tiempo_minimo_segundos" value="{{ old('tiempo_minimo_segundos', $pausa->tiempo_minimo_segundos ?? 60) }}">
                     </div>

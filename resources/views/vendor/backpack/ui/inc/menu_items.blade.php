@@ -84,6 +84,9 @@
         @if(backpack_user()->hasAnyRole(['Administrador','Coordinador general']))
             <x-backpack::menu-dropdown-item title="Envíos Encuestas" icon="la la-paper-plane" :link="backpack_url('encuesta-envio')" />
         @endif
+        @if(backpack_user()->hasAnyRole(['Administrador','Coordinador general','Coordinador de planta']))
+            <x-backpack::menu-dropdown-item title="Participaciones" icon="la la-user-check" :link="backpack_url('encuesta-participacion')" />
+        @endif
         @if(backpack_user()->hasAnyRole(['Administrador','Coordinador de planta']))
             <x-backpack::menu-dropdown-item title="Alertas Encuestas" icon="la la-bell" :link="backpack_url('encuesta-alerta')" />
         @endif
