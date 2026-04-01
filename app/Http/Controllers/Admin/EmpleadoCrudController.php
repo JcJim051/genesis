@@ -875,9 +875,16 @@ class EmpleadoCrudController extends CrudController
             return;
         }
 
-        $edad = $this->computeEdadFromFecha(
-            $empleado->fecha_nacimiento ? $empleado->fecha_nacimiento->format('Y-m-d') : null
-        );
+        $fecha = null;
+        if ($empleado->fecha_nacimiento) {
+            try {
+                $fecha = Carbon::parse($empleado->fecha_nacimiento)->format('Y-m-d');
+            } catch (\Throwable $e) {
+                $fecha = null;
+            }
+        }
+
+        $edad = $this->computeEdadFromFecha($fecha);
 
         $empleado->edad = $edad;
         $empleado->save();

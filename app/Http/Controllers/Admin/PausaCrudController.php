@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Models\Pausa;
+use App\Models\PausaFormulario;
+use App\Models\PausaPregunta;
+use App\Models\PausaOpcion;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+use Illuminate\Http\Request;
 
 class PausaCrudController extends CrudController
 {
@@ -19,10 +23,14 @@ class PausaCrudController extends CrudController
         CRUD::setModel(Pausa::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/pausa');
         CRUD::setEntityNameStrings('pausa activa', 'pausas activas');
+        $this->crud->denyAccess(['create', 'update', 'delete']);
     }
 
     protected function setupListOperation(): void
     {
+        $this->crud->addButtonFromView('top', 'pausa_builder_create', 'pausa_builder_create', 'beginning');
+        $this->crud->addButtonFromView('line', 'pausa_builder', 'pausa_builder', 'beginning');
+
         CRUD::column('nombre');
         CRUD::column('categoria');
         CRUD::column('tiempo_minimo_segundos')->label('Tiempo mínimo (s)');
@@ -49,6 +57,11 @@ class PausaCrudController extends CrudController
         $this->setupCreateOperation();
     }
 
+    protected function setupShowOperation(): void
+    {
+        $this->crud->addButtonFromView('top', 'pausa_builder', 'pausa_builder', 'beginning');
+    }
+
     public function store()
     {
         $response = $this->traitStore();
@@ -72,5 +85,155 @@ class PausaCrudController extends CrudController
         if (! $pausa->formulario) {
             $pausa->formulario()->create();
         }
+    }
+
+    public function builder(Request $request, ?int $id = null)
+    {
+        $pausa = $id ? Pausa::findOrFail($id) : new Pausa();
+        $questions = [];
+
+        if ($pausa->exists) {
+            $formulario = $pausa->formulario ?: $pausa->formulario()->create();
+            $all = PausaPregunta::with('opciones')
+                ->where('formulario_id', $formulario->id)
+                ->orderBy('orden')
+                ->get();
+
+            foreach ($all as $q) {
+                $qKey = 'q' . $q->id;
+                $options = [];
+                foreach ($q->opciones->sortBy('orden') as $opt) {
+                    $options[] = [
+                        'key' => 'o' . $opt->id,
+                        'id' => $opt->id,
+                        'texto' => $opt->texto,
+                        'valor' => $opt->valor,
+                        'orden' => $opt->orden,
+                    ];
+                }
+
+                $questions[] = [
+                    'key' => $qKey,
+                    'id' => $q->id,
+                    'texto' => $q->texto,
+                    'tipo' => $q->tipo,
+                    'orden' => $q->orden,
+                    'options' => $options,
+                ];
+            }
+        }
+
+        return view('admin.pausas.builder', [
+            'pausa' => $pausa,
+            'questions' => $questions,
+        ]);
+    }
+
+    public function builderSave(Request $request, ?int $id = null)
+    {
+        $data = $request->validate([
+            'nombre' => 'required|string',
+            'descripcion' => 'nullable|string',
+            'categoria' => 'nullable|string',
+            'video_url' => 'nullable|string',
+            'tiempo_minimo_segundos' => 'nullable|numeric',
+            'activa' => 'nullable|boolean',
+        ]);
+
+        $pausa = $id ? Pausa::findOrFail($id) : new Pausa();
+        $pausa->fill([
+            'nombre' => $data['nombre'],
+            'descripcion' => $data['descripcion'] ?? null,
+            'categoria' => $data['categoria'] ?? null,
+            'video_url' => $data['video_url'] ?? null,
+            'tiempo_minimo_segundos' => $data['tiempo_minimo_segundos'] ?? 60,
+            'activa' => (bool) ($data['activa'] ?? false),
+        ]);
+        $pausa->save();
+
+        $formulario = $pausa->formulario ?: $pausa->formulario()->create();
+
+        $questions = $request->input('questions', []);
+        $keyToId = [];
+        $submittedIds = [];
+
+        foreach ($questions as $qKey => $q) {
+            $texto = trim((string) ($q['texto'] ?? ''));
+            if ($texto === '') {
+                continue;
+            }
+
+            $question = null;
+            if (! empty($q['id'])) {
+                $question = PausaPregunta::find($q['id']);
+            }
+
+            if (! $question) {
+                $question = new PausaPregunta();
+                $question->formulario_id = $formulario->id;
+            }
+
+            $question->texto = $texto;
+            $question->tipo = $q['tipo'] ?? 'abierta';
+            $question->orden = (int) ($q['orden'] ?? 0);
+            $question->save();
+
+            $keyToId[$qKey] = $question->id;
+            $submittedIds[] = $question->id;
+        }
+
+        // options
+        foreach ($questions as $qKey => $q) {
+            $questionId = $keyToId[$qKey] ?? null;
+            if (! $questionId) {
+                continue;
+            }
+
+            $question = PausaPregunta::find($questionId);
+            if ($question && $question->tipo !== 'opcion') {
+                PausaOpcion::where('pregunta_id', $questionId)->delete();
+                continue;
+            }
+
+            $existing = PausaOpcion::where('pregunta_id', $questionId)->pluck('id')->all();
+            $used = [];
+
+            foreach (($q['options'] ?? []) as $oKey => $opt) {
+                $texto = trim((string) ($opt['texto'] ?? ''));
+                if ($texto === '') {
+                    continue;
+                }
+
+                $opcion = null;
+                if (! empty($opt['id'])) {
+                    $opcion = PausaOpcion::find($opt['id']);
+                }
+                if (! $opcion) {
+                    $opcion = new PausaOpcion();
+                    $opcion->pregunta_id = $questionId;
+                }
+
+                $opcion->texto = $texto;
+                $opcion->valor = (string) ($opt['valor'] ?? '');
+                $opcion->orden = (int) ($opt['orden'] ?? 0);
+                $opcion->save();
+
+                $used[] = $opcion->id;
+            }
+
+            $toDelete = array_diff($existing, $used);
+            if (! empty($toDelete)) {
+                PausaOpcion::whereIn('id', $toDelete)->delete();
+            }
+        }
+
+        if (! empty($submittedIds)) {
+            PausaPregunta::where('formulario_id', $formulario->id)
+                ->whereNotIn('id', $submittedIds)
+                ->delete();
+        }
+
+        return redirect(backpack_url('pausa/' . $pausa->id . '/builder'))
+            ->with('success', 'Pausa guardada correctamente.');
     }
 }

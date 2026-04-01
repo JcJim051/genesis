@@ -15,6 +15,11 @@ class EncuestaPregunta extends Model
         'encuesta_id',
         'texto',
         'orden',
+        'conditional_rules',
+    ];
+
+    protected $casts = [
+        'conditional_rules' => 'array',
     ];
 
     public function encuesta()

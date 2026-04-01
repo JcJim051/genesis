@@ -68,8 +68,6 @@
     <x-backpack::menu-dropdown title="Pausas Activas" icon="la la-play-circle">
         @if(backpack_user()->hasRole('Administrador'))
             <x-backpack::menu-dropdown-item title="Pausas" icon="la la-list" :link="backpack_url('pausa')" />
-            <x-backpack::menu-dropdown-item title="Preguntas" icon="la la-question" :link="backpack_url('pausa-pregunta')" />
-            <x-backpack::menu-dropdown-item title="Opciones" icon="la la-check-square" :link="backpack_url('pausa-opcion')" />
         @endif
         @if(backpack_user()->hasAnyRole(['Administrador','Coordinador general']))
             <x-backpack::menu-dropdown-item title="Envíos" icon="la la-paper-plane" :link="backpack_url('pausa-envio')" />
@@ -82,8 +80,6 @@
     <x-backpack::menu-dropdown title="Encuestas" icon="la la-edit">
         @if(backpack_user()->hasRole('Administrador'))
             <x-backpack::menu-dropdown-item title="Encuestas" icon="la la-edit" :link="backpack_url('encuesta')" />
-            <x-backpack::menu-dropdown-item title="Preguntas" icon="la la-question" :link="backpack_url('encuesta-pregunta')" />
-            <x-backpack::menu-dropdown-item title="Opciones" icon="la la-check-square" :link="backpack_url('encuesta-opcion')" />
         @endif
         @if(backpack_user()->hasAnyRole(['Administrador','Coordinador general']))
             <x-backpack::menu-dropdown-item title="Envíos Encuestas" icon="la la-paper-plane" :link="backpack_url('encuesta-envio')" />

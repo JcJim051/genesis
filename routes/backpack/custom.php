@@ -72,6 +72,10 @@ Route::group([
     Route::get('incapacidad/reprocess', [IncapacidadCrudController::class, 'reprocess']);
     Route::crud('examen', ExamenCrudController::class);
     Route::crud('encuesta', EncuestaCrudController::class);
+    Route::get('encuesta/builder', [EncuestaCrudController::class, 'builder']);
+    Route::post('encuesta/builder', [EncuestaCrudController::class, 'builderSave']);
+    Route::get('encuesta/{id}/builder', [EncuestaCrudController::class, 'builder'])->whereNumber('id');
+    Route::post('encuesta/{id}/builder', [EncuestaCrudController::class, 'builderSave'])->whereNumber('id');
     Route::crud('encuesta-pregunta', EncuestaPreguntaCrudController::class);
     Route::crud('encuesta-opcion', EncuestaOpcionCrudController::class);
     Route::crud('encuesta-envio', EncuestaEnvioCrudController::class);
@@ -79,6 +83,10 @@ Route::group([
     Route::post('encuesta-envio/{id}/procesar', [EncuestaEnvioCrudController::class, 'procesar'])->whereNumber('id');
     Route::crud('encuesta-alerta', EncuestaAlertaCrudController::class);
     Route::crud('pausa', PausaCrudController::class);
+    Route::get('pausa/builder', [PausaCrudController::class, 'builder']);
+    Route::post('pausa/builder', [PausaCrudController::class, 'builderSave']);
+    Route::get('pausa/{id}/builder', [PausaCrudController::class, 'builder'])->whereNumber('id');
+    Route::post('pausa/{id}/builder', [PausaCrudController::class, 'builderSave'])->whereNumber('id');
     Route::crud('pausa-pregunta', PausaPreguntaCrudController::class);
     Route::crud('pausa-opcion', PausaOpcionCrudController::class);
     Route::crud('pausa-envio', PausaEnvioCrudController::class);

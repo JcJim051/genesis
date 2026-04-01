@@ -8,6 +8,7 @@ use App\Models\Encuesta;
 use App\Models\EncuestaEnvio;
 use App\Models\EncuestaRespuesta;
 use App\Models\Sucursal;
+use App\Services\TelegramService;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use Carbon\Carbon;
@@ -206,17 +207,24 @@ class EncuestaEnvioCrudController extends CrudController
             return;
         }
 
+        $service = new TelegramService();
+
         if ($mode === 'pending') {
             $respuestas = EncuestaRespuesta::query()
                 ->where('envio_id', $envio->id)
                 ->get();
 
             foreach ($respuestas as $resp) {
+                $empleado = Empleado::find($resp->empleado_id);
+                if (! $empleado || ! $empleado->telegram_chat_id) {
+                    continue;
+                }
                 if ($onlyIncomplete && $resp->estado === 'completada') {
                     continue;
                 }
-                // Aquí solo re-generamos respuestas si faltan; no hay envío directo
-                // porque las encuestas no se envían por Telegram en esta etapa.
+                $link = url('/encuestas/' . $resp->token);
+                $text = "Encuesta: {$envio->encuesta?->titulo}\n\nAccede aquí: {$link}";
+                $service->sendMessage($empleado->telegram_chat_id, $text);
             }
         } else {
             $query = Empleado::query()
@@ -230,14 +238,29 @@ class EncuestaEnvioCrudController extends CrudController
             $empleados = $query->get(['id']);
 
             foreach ($empleados as $empleado) {
-                EncuestaRespuesta::firstOrCreate([
+                $resp = EncuestaRespuesta::firstOrCreate([
                     'encuesta_id' => $envio->encuesta_id,
                     'envio_id' => $envio->id,
                     'empleado_id' => $empleado->id,
                 ], [
                     'token' => (string) Str::uuid(),
-                    'estado' => 'pendiente',
+                    'estado' => $empleado->telegram_chat_id ? 'pendiente' : 'pendiente_activacion',
                 ]);
+
+                if ($empleado->telegram_chat_id && $resp->estado === 'pendiente_activacion') {
+                    $resp->estado = 'pendiente';
+                    $resp->save();
+                }
+
+                if ($onlyIncomplete && $resp->estado === 'completada') {
+                    continue;
+                }
+
+                if ($empleado->telegram_chat_id) {
+                    $link = url('/encuestas/' . $resp->token);
+                    $text = "Encuesta: {$envio->encuesta?->titulo}\n\nAccede aquí: {$link}";
+                    $service->sendMessage($empleado->telegram_chat_id, $text);
+                }
             }
         }
 
