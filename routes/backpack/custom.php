@@ -44,6 +44,8 @@ Route::group([
     Route::crud('sucursal', SucursalCrudController::class);
     Route::crud('empleado', EmpleadoCrudController::class);
     Route::get('empleado/lookup', [EmpleadoCrudController::class, 'lookup']);
+    Route::get('empleado/telegram-pendientes', [EmpleadoCrudController::class, 'telegramPendientes']);
+    Route::post('empleado/{id}/telegram-unlink', [EmpleadoCrudController::class, 'desvincularTelegram'])->whereNumber('id');
     Route::get('empleado/import', [EmpleadoCrudController::class, 'importForm']);
     Route::post('empleado/import', [EmpleadoCrudController::class, 'import']);
     Route::get('empleado/template', [EmpleadoCrudController::class, 'template']);
@@ -74,12 +76,14 @@ Route::group([
     Route::crud('encuesta-opcion', EncuestaOpcionCrudController::class);
     Route::crud('encuesta-envio', EncuestaEnvioCrudController::class);
     Route::get('encuesta-envio/{id}/procesar', [EncuestaEnvioCrudController::class, 'procesar'])->whereNumber('id');
+    Route::post('encuesta-envio/{id}/procesar', [EncuestaEnvioCrudController::class, 'procesar'])->whereNumber('id');
     Route::crud('encuesta-alerta', EncuestaAlertaCrudController::class);
     Route::crud('pausa', PausaCrudController::class);
     Route::crud('pausa-pregunta', PausaPreguntaCrudController::class);
     Route::crud('pausa-opcion', PausaOpcionCrudController::class);
     Route::crud('pausa-envio', PausaEnvioCrudController::class);
     Route::get('pausa-envio/{id}/procesar', [PausaEnvioCrudController::class, 'procesar'])->whereNumber('id');
+    Route::post('pausa-envio/{id}/procesar', [PausaEnvioCrudController::class, 'procesar'])->whereNumber('id');
     Route::crud('pausa-participacion', PausaParticipacionCrudController::class);
     Route::crud('reincorporacion', ReincorporacionCrudController::class);
     Route::get('reincorporacion/{id}/acta', [ReincorporacionCrudController::class, 'acta'])->whereNumber('id');

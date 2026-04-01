@@ -17,6 +17,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use Prologue\Alerts\Facades\Alert;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class EmpleadoCrudController extends CrudController
 {
@@ -38,6 +39,7 @@ class EmpleadoCrudController extends CrudController
     protected function setupListOperation(): void
     {
         $this->applyListScope();
+        $this->crud->addButtonFromView('top', 'telegram_pendientes', 'empleado_telegram_pendientes', 'beginning');
         $this->crud->addButtonFromView('top', 'import', 'empleado_import', 'beginning');
 
         CRUD::addColumn([
@@ -222,6 +224,68 @@ class EmpleadoCrudController extends CrudController
             'antiguedad_cargo' => $empleado->getAntiguedadCargoActual(),
             'area_actual' => $empleado->getAreaActual(),
         ]);
+    }
+
+    public function telegramPendientes()
+    {
+        $this->applyAccessRules();
+        $this->applyListScope();
+
+        $query = Empleado::query()
+            ->whereNull('telegram_chat_id')
+            ->whereNull('fecha_retiro');
+
+        if (! $this->isAdmin()) {
+            if ($this->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
+                $empresaIds = $this->empresaIdsForUser();
+                $query->whereIn('cliente_id', $empresaIds ?: [0]);
+            } elseif ($this->hasAnyRole(['Coordinador de planta', 'Asesor externo planta'])) {
+                $plantaIds = $this->plantaIdsForUser();
+                $query->whereIn('sucursal_id', $plantaIds ?: [0]);
+            } else {
+                abort(403);
+            }
+        }
+
+        $filename = 'activacion_telegram_pendientes_' . now()->format('Ymd_His') . '.csv';
+
+        $response = new StreamedResponse(function () use ($query) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['NOMBRE', 'CEDULA', 'EMPRESA', 'PLANTA', 'LINK']);
+
+            $query->with(['cliente', 'sucursal'])->chunk(200, function ($rows) use ($handle) {
+                foreach ($rows as $empleado) {
+                    $link = $empleado->getTelegramActivationUrl();
+                    fputcsv($handle, [
+                        $empleado->nombre,
+                        $empleado->cedula,
+                        $empleado->cliente?->nombre,
+                        $empleado->sucursal?->nombre,
+                        $link,
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        });
+
+        $response->headers->set('Content-Type', 'text/csv; charset=UTF-8');
+        $response->headers->set('Content-Disposition', 'attachment; filename="' . $filename . '"');
+
+        return $response;
+    }
+
+    public function desvincularTelegram($id)
+    {
+        $this->enforceEntryScope((int) $id);
+
+        $empleado = Empleado::findOrFail($id);
+        $empleado->telegram_chat_id = null;
+        $empleado->telegram_username = null;
+        $empleado->save();
+
+        Alert::add('success', 'Telegram desvinculado correctamente.')->flash();
+        return redirect()->back();
     }
 
     public function store()

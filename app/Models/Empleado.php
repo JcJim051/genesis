@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
+use App\Models\TelegramActivationLink;
 
 class Empleado extends Model
 {
@@ -65,6 +67,25 @@ class Empleado extends Model
     public function pausaParticipaciones()
     {
         return $this->hasMany(PausaParticipacion::class, 'empleado_id');
+    }
+
+    public function telegramActivationLink()
+    {
+        return $this->hasOne(TelegramActivationLink::class, 'empleado_id');
+    }
+
+    public function getTelegramActivationUrl(): string
+    {
+        $link = $this->telegramActivationLink;
+        if (! $link) {
+            $token = Str::random(16);
+            $link = TelegramActivationLink::create([
+                'empleado_id' => $this->id,
+                'token' => $token,
+            ]);
+        }
+
+        return url('/a/' . $link->token);
     }
 
     public function getClienteNombre(): string

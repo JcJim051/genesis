@@ -10,6 +10,8 @@ use App\Models\EncuestaRespuesta;
 use App\Models\Sucursal;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
 class EncuestaEnvioCrudController extends CrudController
@@ -33,7 +35,8 @@ class EncuestaEnvioCrudController extends CrudController
         $this->applyListScope();
 
         $this->crud->addClause('with', ['respuestas']);
-        $this->crud->addButtonFromView('line', 'encuesta_envio_procesar', 'encuesta_envio_procesar', 'end');
+        $this->crud->setListView('admin.encuesta_envios.list');
+        $this->crud->addButtonFromView('line', 'encuesta_envio_send', 'encuesta_envio_send', 'end');
 
         CRUD::addColumn([
             'name' => 'encuesta',
@@ -127,32 +130,73 @@ class EncuestaEnvioCrudController extends CrudController
     public function store()
     {
         $response = $this->traitStore();
-        $this->crearRespuestasSiCorresponde();
+        $this->crearRespuestasSiCorresponde(true, ['mode' => 'all', 'only_incomplete' => true]);
         return $response;
     }
 
     public function update()
     {
         $response = $this->traitUpdate();
-        $this->crearRespuestasSiCorresponde();
+        $this->crearRespuestasSiCorresponde(true, ['mode' => 'all', 'only_incomplete' => true]);
         return $response;
     }
 
-    public function procesar($id)
+    public function procesar(Request $request, $id)
     {
         $this->applyListScope();
         $envio = EncuestaEnvio::findOrFail($id);
+        $mode = $request->input('send_mode', 'all');
+        $onlyIncomplete = $request->boolean('only_incomplete', true);
+        $scheduledAt = $request->input('scheduled_at');
+
+        if ($scheduledAt) {
+            $when = Carbon::parse($scheduledAt);
+            if ($when->isFuture()) {
+                $envio->update([
+                    'programado_para' => $when,
+                    'programado_modo' => $mode,
+                    'programado_solo_no_completados' => $onlyIncomplete,
+                ]);
+
+                return redirect()->back()->with('success', 'Envío programado para ' . $when->format('Y-m-d H:i'));
+            }
+        }
+
         $this->crud->entry = $envio;
-        $this->crearRespuestasSiCorresponde(true);
+        $this->crearRespuestasSiCorresponde(true, [
+            'mode' => $mode,
+            'only_incomplete' => $onlyIncomplete,
+        ]);
+
         return redirect()->back();
     }
 
-    private function crearRespuestasSiCorresponde(bool $force = false): void
+    public function procesarProgramados(): void
+    {
+        $envios = EncuestaEnvio::query()
+            ->whereNotNull('programado_para')
+            ->whereNull('procesado_en')
+            ->where('programado_para', '<=', now())
+            ->get();
+
+        foreach ($envios as $envio) {
+            $this->crud->entry = $envio;
+            $this->crearRespuestasSiCorresponde(true, [
+                'mode' => $envio->programado_modo ?: 'all',
+                'only_incomplete' => $envio->programado_solo_no_completados ?? true,
+            ]);
+        }
+    }
+
+    private function crearRespuestasSiCorresponde(bool $force = false, array $options = []): void
     {
         $envio = $this->crud->entry;
         if (! $envio) {
             return;
         }
+
+        $mode = $options['mode'] ?? 'all';
+        $onlyIncomplete = (bool) ($options['only_incomplete'] ?? true);
 
         if ($envio->procesado_en && ! $force) {
             return;
@@ -162,28 +206,47 @@ class EncuestaEnvioCrudController extends CrudController
             return;
         }
 
-        $query = Empleado::query()
-            ->whereNull('fecha_retiro')
-            ->where('cliente_id', $envio->cliente_id);
+        if ($mode === 'pending') {
+            $respuestas = EncuestaRespuesta::query()
+                ->where('envio_id', $envio->id)
+                ->get();
 
-        if ($envio->sucursal_id) {
-            $query->where('sucursal_id', $envio->sucursal_id);
+            foreach ($respuestas as $resp) {
+                if ($onlyIncomplete && $resp->estado === 'completada') {
+                    continue;
+                }
+                // Aquí solo re-generamos respuestas si faltan; no hay envío directo
+                // porque las encuestas no se envían por Telegram en esta etapa.
+            }
+        } else {
+            $query = Empleado::query()
+                ->whereNull('fecha_retiro')
+                ->where('cliente_id', $envio->cliente_id);
+
+            if ($envio->sucursal_id) {
+                $query->where('sucursal_id', $envio->sucursal_id);
+            }
+
+            $empleados = $query->get(['id']);
+
+            foreach ($empleados as $empleado) {
+                EncuestaRespuesta::firstOrCreate([
+                    'encuesta_id' => $envio->encuesta_id,
+                    'envio_id' => $envio->id,
+                    'empleado_id' => $empleado->id,
+                ], [
+                    'token' => (string) Str::uuid(),
+                    'estado' => 'pendiente',
+                ]);
+            }
         }
 
-        $empleados = $query->get(['id']);
-
-        foreach ($empleados as $empleado) {
-            EncuestaRespuesta::firstOrCreate([
-                'encuesta_id' => $envio->encuesta_id,
-                'envio_id' => $envio->id,
-                'empleado_id' => $empleado->id,
-            ], [
-                'token' => (string) Str::uuid(),
-                'estado' => 'pendiente',
-            ]);
-        }
-
-        $envio->update(['procesado_en' => now()]);
+        $envio->update([
+            'procesado_en' => now(),
+            'programado_para' => null,
+            'programado_modo' => null,
+            'programado_solo_no_completados' => null,
+        ]);
     }
 
     private function applyAccessRules(): void

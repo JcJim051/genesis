@@ -259,17 +259,59 @@
             @endif
         </div>
 
-        @if (! $entry->telegram_chat_id)
+        @if ($entry->telegram_chat_id)
+            <div class="card p-4 mt-4">
+                <h5 class="mb-2">Telegram</h5>
+                <div class="text-muted mb-2">chat_id registrado: {{ $entry->telegram_chat_id }}</div>
+                <form method="POST" action="{{ backpack_url('empleado/' . $entry->id . '/telegram-unlink') }}">
+                    @csrf
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Desvincular Telegram</button>
+                </form>
+            </div>
+        @else
             <div class="card p-4 mt-4">
                 <h5 class="mb-2">Activar Telegram</h5>
                 <div class="text-muted mb-2">El empleado aún no tiene chat_id registrado.</div>
                 @php
-                    $botUser = config('services.telegram.bot_username', 'genesis_col_bot');
-                    $startLink = 'https://t.me/' . $botUser . '?start=emp_' . $entry->id;
+                    $startLink = $entry->getTelegramActivationUrl();
                 @endphp
-                <a class="btn btn-sm btn-outline-success" href="{{ $startLink }}" target="_blank">Abrir bot</a>
+                <button class="btn btn-sm btn-outline-success" type="button" data-copy-link="{{ $startLink }}">
+                    Copiar link
+                </button>
+                <span class="text-success small ms-2 d-none" id="copy-link-success">Copiado</span>
             </div>
         @endif
     </div>
 </div>
+
+@push('after_scripts')
+<script>
+document.addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-copy-link]');
+    if (!btn) return;
+    const link = btn.getAttribute('data-copy-link');
+    const ok = document.getElementById('copy-link-success');
+
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(link).then(() => {
+            if (ok) {
+                ok.classList.remove('d-none');
+                setTimeout(() => ok.classList.add('d-none'), 2000);
+            }
+        });
+    } else {
+        const input = document.createElement('input');
+        input.value = link;
+        document.body.appendChild(input);
+        input.select();
+        document.execCommand('copy');
+        input.remove();
+        if (ok) {
+            ok.classList.remove('d-none');
+            setTimeout(() => ok.classList.add('d-none'), 2000);
+        }
+    }
+});
+</script>
+@endpush
 @endsection

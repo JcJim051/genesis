@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\EncuestaPublicController;
 use App\Http\Controllers\PausaPublicController;
+use App\Http\Controllers\TelegramActivationController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -14,3 +15,5 @@ Route::post('/encuestas/{token}', [EncuestaPublicController::class, 'submit'])->
 Route::get('/pausas/{token}', [PausaPublicController::class, 'show'])->name('pausas.show');
 Route::post('/pausas/{token}', [PausaPublicController::class, 'submit'])->name('pausas.submit');
 Route::post('/pausas/{token}/event', [PausaPublicController::class, 'event'])->name('pausas.event');
+
+Route::get('/a/{token}', TelegramActivationController::class)->name('telegram.activate');

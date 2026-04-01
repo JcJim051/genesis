@@ -18,12 +18,17 @@ class EncuestaEnvio extends Model
         'fecha_envio',
         'fecha_expiracion',
         'procesado_en',
+        'programado_para',
+        'programado_modo',
+        'programado_solo_no_completados',
     ];
 
     protected $casts = [
         'fecha_envio' => 'date',
         'fecha_expiracion' => 'date',
         'procesado_en' => 'datetime',
+        'programado_para' => 'datetime',
+        'programado_solo_no_completados' => 'boolean',
     ];
 
     public function encuesta()

@@ -3,11 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Empleado;
+use App\Services\TelegramService;
 use Illuminate\Http\Request;
 
 class TelegramWebhookController extends Controller
 {
-    public function handle(Request $request)
+    public function handle(Request $request, TelegramService $telegram)
     {
         $secret = config('services.telegram.webhook_secret');
         if ($secret) {
@@ -31,6 +32,8 @@ class TelegramWebhookController extends Controller
                     $empleado->telegram_username = (string) $username;
                 }
                 $empleado->save();
+
+                $telegram->sendMessage((string) $chatId, "Tu bot fue activado correctamente. Ahora puedes recibir informacion por este canal.");
             }
         }
 

@@ -9,3 +9,9 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('encuestas:procesar-envios')->hourly();
+Schedule::call(function () {
+    app(\App\Http\Controllers\Admin\PausaEnvioCrudController::class)->procesarProgramados();
+})->everyMinute();
+Schedule::call(function () {
+    app(\App\Http\Controllers\Admin\EncuestaEnvioCrudController::class)->procesarProgramados();
+})->everyMinute();
