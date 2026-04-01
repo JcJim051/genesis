@@ -259,7 +259,7 @@ class PausaEnvioCrudController extends CrudController
             'procesado_en' => now(),
             'programado_para' => null,
             'programado_modo' => null,
-            'programado_solo_no_completados' => null,
+            'programado_solo_no_completados' => $onlyIncomplete,
         ]);
     }
 }
