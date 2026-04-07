@@ -317,9 +317,17 @@
                 @php
                     $startLink = $entry->getTelegramActivationUrl();
                 @endphp
-                <button class="btn btn-sm btn-outline-success" type="button" data-copy-link="{{ $startLink }}">
-                    Copiar link
-                </button>
+                <div class="d-flex gap-2 align-items-center">
+                    <button class="btn btn-sm btn-outline-success" type="button" data-copy-link="{{ $startLink }}">
+                        Copiar link
+                    </button>
+                    @if ($entry->correo_electronico)
+                        <form method="POST" action="{{ backpack_url('empleado/' . $entry->id . '/telegram-email') }}">
+                            @csrf
+                            <button class="btn btn-sm btn-outline-primary" type="submit">Enviar correo</button>
+                        </form>
+                    @endif
+                </div>
                 <span class="text-success small ms-2 d-none" id="copy-link-success">Copiado</span>
             </div>
         @endif

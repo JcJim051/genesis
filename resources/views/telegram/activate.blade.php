@@ -19,7 +19,7 @@
         <p><a class="btn" href="{{ $startLink }}">Abrir Telegram</a></p>
         <p class="muted">Si no se abre, copia este enlace en el navegador:</p>
         <p class="code">{{ $startLink }}</p>
-        <p class="muted">O en Telegram, busca <strong>@{{ $botUser }}</strong> y envía:</p>
+        <p class="muted">O en Telegram, busca <strong>{{ '@' . $botUser }}</strong> y envía:</p>
         <p class="code">/start {{ $payload }}</p>
     </div>
     <script>

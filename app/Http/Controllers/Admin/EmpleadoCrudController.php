@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Requests\EmpleadoRequest;
+use App\Mail\TelegramActivationMail;
 use App\Models\Empleado;
 use App\Models\EmpleadoArea;
 use App\Models\EmpleadoCargo;
@@ -12,6 +13,7 @@ use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -40,6 +42,7 @@ class EmpleadoCrudController extends CrudController
     {
         $this->applyListScope();
         $this->crud->addButtonFromView('top', 'telegram_pendientes', 'empleado_telegram_pendientes', 'beginning');
+        $this->crud->addButtonFromView('top', 'telegram_pendientes_csv', 'empleado_telegram_pendientes_csv', 'beginning');
         $this->crud->addButtonFromView('top', 'import', 'empleado_import', 'beginning');
 
         CRUD::addColumn([
@@ -273,6 +276,90 @@ class EmpleadoCrudController extends CrudController
         $response->headers->set('Content-Disposition', 'attachment; filename="' . $filename . '"');
 
         return $response;
+    }
+
+    public function telegramPendientesView()
+    {
+        $this->applyAccessRules();
+        $this->applyListScope();
+
+        $query = Empleado::query()
+            ->whereNull('telegram_chat_id')
+            ->whereNull('fecha_retiro');
+
+        if (! $this->isAdmin()) {
+            if ($this->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
+                $empresaIds = $this->empresaIdsForUser();
+                $query->whereIn('cliente_id', $empresaIds ?: [0]);
+            } elseif ($this->hasAnyRole(['Coordinador de planta', 'Asesor externo planta'])) {
+                $plantaIds = $this->plantaIdsForUser();
+                $query->whereIn('sucursal_id', $plantaIds ?: [0]);
+            } else {
+                abort(403);
+            }
+        }
+
+        $total = (clone $query)->count();
+        $conCorreo = (clone $query)->whereNotNull('correo_electronico')->count();
+        $sinCorreo = $total - $conCorreo;
+
+        $empleados = $query->with(['cliente', 'sucursal'])->orderBy('nombre')->paginate(50);
+
+        return view('admin.empleados.telegram_pendientes', [
+            'empleados' => $empleados,
+            'total' => $total,
+            'conCorreo' => $conCorreo,
+            'sinCorreo' => $sinCorreo,
+        ]);
+    }
+
+    public function enviarTelegramEmail($id)
+    {
+        $this->enforceEntryScope((int) $id);
+        $empleado = Empleado::findOrFail($id);
+
+        if (! $empleado->correo_electronico) {
+            return back()->withErrors('La persona no tiene correo registrado.');
+        }
+
+        $link = $empleado->getTelegramActivationUrl();
+        Mail::to($empleado->correo_electronico)->send(new TelegramActivationMail($empleado, $link));
+
+        return back()->with('success', 'Correo de activación enviado.');
+    }
+
+    public function enviarTelegramEmailsPendientes()
+    {
+        $this->applyAccessRules();
+        $this->applyListScope();
+
+        $query = Empleado::query()
+            ->whereNull('telegram_chat_id')
+            ->whereNull('fecha_retiro')
+            ->whereNotNull('correo_electronico');
+
+        if (! $this->isAdmin()) {
+            if ($this->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
+                $empresaIds = $this->empresaIdsForUser();
+                $query->whereIn('cliente_id', $empresaIds ?: [0]);
+            } elseif ($this->hasAnyRole(['Coordinador de planta', 'Asesor externo planta'])) {
+                $plantaIds = $this->plantaIdsForUser();
+                $query->whereIn('sucursal_id', $plantaIds ?: [0]);
+            } else {
+                abort(403);
+            }
+        }
+
+        $sent = 0;
+        $query->chunk(200, function ($rows) use (&$sent) {
+            foreach ($rows as $empleado) {
+                $link = $empleado->getTelegramActivationUrl();
+                Mail::to($empleado->correo_electronico)->send(new TelegramActivationMail($empleado, $link));
+                $sent++;
+            }
+        });
+
+        return back()->with('success', 'Correos de activación enviados: ' . $sent);
     }
 
     public function desvincularTelegram($id)

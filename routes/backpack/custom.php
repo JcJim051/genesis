@@ -46,6 +46,9 @@ Route::group([
     Route::crud('empleado', EmpleadoCrudController::class);
     Route::get('empleado/lookup', [EmpleadoCrudController::class, 'lookup']);
     Route::get('empleado/telegram-pendientes', [EmpleadoCrudController::class, 'telegramPendientes']);
+    Route::get('empleado/telegram-pendientes-view', [EmpleadoCrudController::class, 'telegramPendientesView']);
+    Route::post('empleado/telegram-email-pendientes', [EmpleadoCrudController::class, 'enviarTelegramEmailsPendientes']);
+    Route::post('empleado/{id}/telegram-email', [EmpleadoCrudController::class, 'enviarTelegramEmail'])->whereNumber('id');
     Route::post('empleado/{id}/telegram-unlink', [EmpleadoCrudController::class, 'desvincularTelegram'])->whereNumber('id');
     Route::get('empleado/import', [EmpleadoCrudController::class, 'importForm']);
     Route::post('empleado/import', [EmpleadoCrudController::class, 'import']);
