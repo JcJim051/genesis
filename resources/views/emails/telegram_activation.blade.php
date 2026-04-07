@@ -11,8 +11,8 @@
             <td align="center">
                 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="max-width:620px; background:#ffffff; border-radius:16px; box-shadow:0 10px 30px rgba(31,41,55,0.08); overflow:hidden;">
                     <tr>
-                        <td style="padding:28px 28px 16px 28px; text-align:center; background:linear-gradient(135deg,#f4f9ff 0%,#f3fbf7 55%,#f7fbff 100%);">
-                            <img src="{{ asset('images/brand/genesis-email.png') }}" alt="Genesis SST" style="max-width:220px; width:60%; height:auto; display:inline-block;">
+                        <td style="padding:26px 16px 26px 16px; text-align:center; background:linear-gradient(135deg,#f4f9ff 0%,#f3fbf7 55%,#f7fbff 100%);">
+                            <img src="{{ asset('images/brand/genesis-email.png') }}" alt="Genesis SST" style="width:230px; height:auto; display:inline-block;">
                         </td>
                     </tr>
                     <tr>
