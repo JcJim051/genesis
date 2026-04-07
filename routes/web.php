@@ -17,3 +17,9 @@ Route::post('/pausas/{token}', [PausaPublicController::class, 'submit'])->name('
 Route::post('/pausas/{token}/event', [PausaPublicController::class, 'event'])->name('pausas.event');
 
 Route::get('/a/{token}', TelegramActivationController::class)->name('telegram.activate');
+
+Route::get('/preview-telegram-email', function () {
+    $empleado = (object) ['nombre' => 'Alejandra Nupia'];
+    $link = 'https://genesis.testiapp.com/a/DEMO123';
+    return view('emails.telegram_activation', compact('empleado', 'link'));
+});
