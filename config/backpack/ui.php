@@ -63,7 +63,7 @@ return [
     'home_link' => 'admin/dashboard',
 
     // Menu logo. You can replace this with an <img> tag if you have a logo.
-    'project_logo' => '<b>Genesis</b> SST',
+    'project_logo' => '<img src="/images/brand/genesis-email.png" alt="Genesis SST" style="height:40px; width:auto; display:inline-block;">',
 
     // Show / hide breadcrumbs on admin panel pages.
     'breadcrumbs' => true,
