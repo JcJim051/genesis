@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\Cliente;
 use App\Models\Empleado;
 use App\Models\Encuesta;
@@ -17,11 +18,12 @@ use Illuminate\Support\Str;
 
 class EncuestaEnvioCrudController extends CrudController
 {
+    use TenantScope;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { store as traitStore; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; edit as traitEdit; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as traitDestroy; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
     public function setup(): void
     {
@@ -29,6 +31,12 @@ class EncuestaEnvioCrudController extends CrudController
         CRUD::setRoute(config('backpack.base.route_prefix') . '/encuesta-envio');
         CRUD::setEntityNameStrings('envío', 'envíos');
         $this->applyAccessRules();
+
+        $this->scopeMode = 'fields';
+        $this->scopeEmpresaField = 'cliente_id';
+        $this->scopePlantaField = 'sucursal_id';
+        $this->scopeModelClass = EncuestaEnvio::class;
+        $this->applyTenantScope($this->crud);
     }
 
     protected function setupListOperation(): void
@@ -130,6 +138,7 @@ class EncuestaEnvioCrudController extends CrudController
 
     public function store()
     {
+        $this->enforceCreateScope();
         $response = $this->traitStore();
         $this->enforceEncuestaScope();
         $this->crearRespuestasSiCorresponde(true, ['mode' => 'all', 'only_incomplete' => true]);
@@ -138,14 +147,35 @@ class EncuestaEnvioCrudController extends CrudController
 
     public function update()
     {
+        $this->enforceEntryScopeOrFail((int) $this->crud->getCurrentEntryId());
+        $this->enforceCreateScope();
         $response = $this->traitUpdate();
         $this->enforceEncuestaScope();
         $this->crearRespuestasSiCorresponde(true, ['mode' => 'all', 'only_incomplete' => true]);
         return $response;
     }
 
+    public function show($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitShow($id);
+    }
+
+    public function edit($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitEdit($id);
+    }
+
+    public function destroy($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitDestroy($id);
+    }
+
     public function procesar(Request $request, $id)
     {
+        $this->enforceEntryScopeOrFail((int) $id);
         $this->applyListScope();
         $envio = EncuestaEnvio::findOrFail($id);
         $mode = $request->input('send_mode', 'all');
@@ -272,6 +302,27 @@ class EncuestaEnvioCrudController extends CrudController
             'programado_modo' => null,
             'programado_solo_no_completados' => $onlyIncomplete,
         ]);
+    }
+
+    private function enforceCreateScope(): void
+    {
+        if ($this->isAdmin()) {
+            return;
+        }
+
+        $clienteId = (int) $this->crud->getRequest()->input('cliente_id');
+        $sucursalId = (int) $this->crud->getRequest()->input('sucursal_id');
+
+        $empresaIds = $this->empresaIdsForUser();
+        $plantaIds = $this->plantaIdsForUser();
+
+        if ($clienteId && ! in_array($clienteId, $empresaIds, true)) {
+            abort(403, 'No autorizado.');
+        }
+
+        if ($sucursalId && ! empty($plantaIds) && ! in_array($sucursalId, $plantaIds, true)) {
+            abort(403, 'No autorizado.');
+        }
     }
 
     private function enforceEncuestaScope(): void

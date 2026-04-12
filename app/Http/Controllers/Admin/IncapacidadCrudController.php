@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\DiagnosticoProgramaMap;
 use App\Models\Empleado;
 use App\Models\Incapacidad;
@@ -21,11 +22,12 @@ use Prologue\Alerts\Facades\Alert;
 
 class IncapacidadCrudController extends CrudController
 {
+    use TenantScope;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { store as traitStore; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; edit as traitEdit; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as traitDestroy; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
     public function setup(): void
     {
@@ -33,6 +35,11 @@ class IncapacidadCrudController extends CrudController
         CRUD::setRoute(config('backpack.base.route_prefix') . '/incapacidad');
         CRUD::setEntityNameStrings('incapacidad', 'incapacidades');
         $this->applyAccessRules();
+
+        $this->scopeMode = 'fields';
+        $this->scopeEmpresaField = 'cliente_id';
+        $this->scopePlantaField = 'sucursal_id';
+        $this->scopeModelClass = Incapacidad::class;
     }
 
     protected function setupListOperation(): void
@@ -104,6 +111,30 @@ class IncapacidadCrudController extends CrudController
         CRUD::column('origen');
         CRUD::column('dias_incapacidad');
         CRUD::column('payload')->type('json')->label('Payload');
+    }
+
+    public function show($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitShow($id);
+    }
+
+    public function edit($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitEdit($id);
+    }
+
+    public function update()
+    {
+        $this->enforceEntryScopeOrFail((int) $this->crud->getCurrentEntryId());
+        return $this->traitUpdate();
+    }
+
+    public function destroy($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitDestroy($id);
     }
 
     public function store()

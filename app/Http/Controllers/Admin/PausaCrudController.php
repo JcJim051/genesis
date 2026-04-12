@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\Pausa;
 use App\Models\PausaFormulario;
 use App\Models\PausaPregunta;
@@ -14,11 +15,12 @@ use Illuminate\Http\Request;
 
 class PausaCrudController extends CrudController
 {
+    use TenantScope;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { store as traitStore; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; edit as traitEdit; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as traitDestroy; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
     public function setup(): void
     {
@@ -26,6 +28,10 @@ class PausaCrudController extends CrudController
         CRUD::setRoute(config('backpack.base.route_prefix') . '/pausa');
         CRUD::setEntityNameStrings('pausa activa', 'pausas activas');
         $this->crud->denyAccess(['create', 'update', 'delete']);
+
+        $this->scopeMode = 'fields';
+        $this->scopeModelClass = Pausa::class;
+        $this->applyTenantScope($this->crud);
     }
 
     protected function setupListOperation(): void
@@ -73,9 +79,28 @@ class PausaCrudController extends CrudController
 
     public function update()
     {
+        $this->enforceEntryScopeOrFail((int) $this->crud->getCurrentEntryId());
         $response = $this->traitUpdate();
         $this->ensureFormulario();
         return $response;
+    }
+
+    public function show($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitShow($id);
+    }
+
+    public function edit($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitEdit($id);
+    }
+
+    public function destroy($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitDestroy($id);
     }
 
     private function ensureFormulario(): void
@@ -91,6 +116,9 @@ class PausaCrudController extends CrudController
 
     public function builder(Request $request, ?int $id = null)
     {
+        if ($id) {
+            $this->enforceEntryScopeOrFail($id);
+        }
         $pausa = $id ? Pausa::findOrFail($id) : new Pausa();
         $questions = [];
 
@@ -150,11 +178,19 @@ class PausaCrudController extends CrudController
             'descripcion' => 'nullable|string',
             'categoria' => 'nullable|string',
             'video_url' => 'nullable|string',
+            'external_url' => 'nullable|url',
+            'external_provider' => 'nullable|string',
             'tiempo_minimo_segundos' => 'nullable|numeric',
             'activa' => 'nullable|boolean',
             'cliente_id' => 'nullable|integer',
             'sucursal_id' => 'nullable|integer',
         ]);
+
+        if (! empty($data['external_url']) && ! $this->isAllowedExternalUrl($data['external_url'])) {
+            return back()
+                ->withInput()
+                ->withErrors(['external_url' => 'El dominio de la actividad externa no está permitido.']);
+        }
 
         $pausa = $id ? Pausa::findOrFail($id) : new Pausa();
         $clienteId = $data['cliente_id'] ?? null;
@@ -168,6 +204,8 @@ class PausaCrudController extends CrudController
             'descripcion' => $data['descripcion'] ?? null,
             'categoria' => $data['categoria'] ?? null,
             'video_url' => $data['video_url'] ?? null,
+            'external_url' => $data['external_url'] ?? null,
+            'external_provider' => $data['external_provider'] ?? null,
             'tiempo_minimo_segundos' => $data['tiempo_minimo_segundos'] ?? 60,
             'activa' => (bool) ($data['activa'] ?? false),
             'cliente_id' => $clienteId,
@@ -257,7 +295,30 @@ class PausaCrudController extends CrudController
                 ->delete();
         }
 
-        return redirect(backpack_url('pausa/' . $pausa->id . '/builder'))
+        return redirect(backpack_url('pausa'))
             ->with('success', 'Pausa guardada correctamente.');
+    }
+
+    protected function isAllowedExternalUrl(string $url): bool
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+        if (! $host) {
+            return false;
+        }
+
+        $host = strtolower($host);
+        $allowedRoots = [
+            'educaplay.com',
+            'wordwall.net',
+            'genial.ly',
+        ];
+
+        foreach ($allowedRoots as $root) {
+            if ($host === $root || str_ends_with($host, '.' . $root)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

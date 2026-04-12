@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Http\Requests\EmpleadoCargoRequest;
 use App\Models\Empleado;
 use App\Models\EmpleadoCargo;
@@ -18,17 +19,23 @@ use Prologue\Alerts\Facades\Alert;
 
 class EmpleadoCargoCrudController extends CrudController
 {
+    use TenantScope;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { store as traitStore; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; edit as traitEdit; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as traitDestroy; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
     public function setup(): void
     {
         CRUD::setModel(EmpleadoCargo::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/empleado-cargo');
         CRUD::setEntityNameStrings('cargo', 'cargos');
+
+        $this->scopeMode = 'empleado';
+        $this->scopeRelation = 'empleado';
+        $this->scopeModelClass = EmpleadoCargo::class;
+        $this->applyTenantScope($this->crud);
     }
 
     protected function setupListOperation(): void
@@ -106,6 +113,7 @@ class EmpleadoCargoCrudController extends CrudController
 
     public function update()
     {
+        $this->enforceEntryScopeOrFail((int) $this->crud->getCurrentEntryId());
         $request = $this->crud->getRequest();
         $empleadoId = $request->input('empleado_id');
         $fechaInicio = $request->input('fecha_inicio');
@@ -139,6 +147,24 @@ class EmpleadoCargoCrudController extends CrudController
         }
 
         return $this->traitUpdate();
+    }
+
+    public function show($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitShow($id);
+    }
+
+    public function edit($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitEdit($id);
+    }
+
+    public function destroy($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitDestroy($id);
     }
 
     public function importForm()

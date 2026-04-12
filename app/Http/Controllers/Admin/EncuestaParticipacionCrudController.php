@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Exports\EncuestaParticipacionesExport;
 use App\Models\EncuestaRespuesta;
 use App\Models\Cliente;
@@ -12,8 +13,9 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class EncuestaParticipacionCrudController extends CrudController
 {
+    use TenantScope;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
     public function setup(): void
     {
@@ -21,6 +23,10 @@ class EncuestaParticipacionCrudController extends CrudController
         CRUD::setRoute(config('backpack.base.route_prefix') . '/encuesta-participacion');
         CRUD::setEntityNameStrings('participación', 'participaciones');
         $this->applyListScope();
+
+        $this->scopeMode = 'relation';
+        $this->scopeRelation = 'empleado';
+        $this->scopeModelClass = EncuestaRespuesta::class;
     }
 
     protected function setupListOperation(): void
@@ -97,6 +103,12 @@ class EncuestaParticipacionCrudController extends CrudController
     protected function setupShowOperation(): void
     {
         $this->crud->setShowView('admin.encuestas.participacion_show');
+    }
+
+    public function show($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitShow($id);
     }
 
     public function export()

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\Empleado;
 use App\Models\Programa;
 use App\Models\ProgramaCaso;
@@ -10,11 +11,12 @@ use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 
 class ProgramaCasoCrudController extends CrudController
 {
+    use TenantScope;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; edit as traitEdit; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as traitDestroy; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
     public function setup(): void
     {
@@ -22,6 +24,10 @@ class ProgramaCasoCrudController extends CrudController
         CRUD::setRoute(config('backpack.base.route_prefix') . '/programa-caso');
         CRUD::setEntityNameStrings('caso', 'casos');
         $this->applyAccessRules();
+
+        $this->scopeMode = 'relation';
+        $this->scopeRelation = 'empleado';
+        $this->scopeModelClass = ProgramaCaso::class;
     }
 
     protected function setupListOperation(): void
@@ -241,8 +247,33 @@ class ProgramaCasoCrudController extends CrudController
         }
     }
 
+    public function show($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitShow($id);
+    }
+
+    public function edit($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitEdit($id);
+    }
+
+    public function update()
+    {
+        $this->enforceEntryScopeOrFail((int) $this->crud->getCurrentEntryId());
+        return $this->traitUpdate();
+    }
+
+    public function destroy($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitDestroy($id);
+    }
+
     public function accept($id)
     {
+        $this->enforceEntryScopeOrFail((int) $id);
         $entry = ProgramaCaso::findOrFail($id);
         $this->authorizeDecision($entry);
         $this->updateEstado($entry, 'Confirmado');
@@ -251,6 +282,7 @@ class ProgramaCasoCrudController extends CrudController
 
     public function probable($id)
     {
+        $this->enforceEntryScopeOrFail((int) $id);
         $entry = ProgramaCaso::findOrFail($id);
         $this->authorizeDecision($entry);
         $this->updateEstado($entry, 'Probable');
@@ -259,6 +291,7 @@ class ProgramaCasoCrudController extends CrudController
 
     public function reject($id)
     {
+        $this->enforceEntryScopeOrFail((int) $id);
         $entry = ProgramaCaso::findOrFail($id);
         $this->authorizeDecision($entry);
         $this->updateEstado($entry, 'No caso');
@@ -267,6 +300,7 @@ class ProgramaCasoCrudController extends CrudController
 
     public function retirar($id)
     {
+        $this->enforceEntryScopeOrFail((int) $id);
         $entry = ProgramaCaso::findOrFail($id);
         $this->authorizeDecision($entry);
         $this->updateEstado($entry, 'No caso');

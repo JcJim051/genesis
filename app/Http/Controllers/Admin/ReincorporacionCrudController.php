@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\Empleado;
 use App\Models\Reincorporacion;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -11,11 +12,12 @@ use Illuminate\Support\Facades\Storage;
 
 class ReincorporacionCrudController extends CrudController
 {
+    use TenantScope;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { store as traitStore; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; edit as traitEdit; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as traitDestroy; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
     public function setup(): void
     {
@@ -23,6 +25,10 @@ class ReincorporacionCrudController extends CrudController
         CRUD::setRoute(config('backpack.base.route_prefix') . '/reincorporacion');
         CRUD::setEntityNameStrings('reincorporación', 'reincorporaciones');
         $this->applyAccessRules();
+
+        $this->scopeMode = 'relation';
+        $this->scopeRelation = 'empleado';
+        $this->scopeModelClass = Reincorporacion::class;
     }
 
     protected function setupListOperation(): void
@@ -59,6 +65,24 @@ class ReincorporacionCrudController extends CrudController
         CRUD::column('fecha_ingreso')->label('Fecha ingreso');
         CRUD::column('acta_pdf_path')->label('Acta PDF');
         CRUD::column('evidencia_pdf_path')->label('Evidencia PDF');
+    }
+
+    public function show($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitShow($id);
+    }
+
+    public function edit($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitEdit($id);
+    }
+
+    public function destroy($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitDestroy($id);
     }
 
     protected function setupCreateOperation(): void
@@ -118,6 +142,7 @@ class ReincorporacionCrudController extends CrudController
 
     public function update()
     {
+        $this->enforceEntryScopeOrFail((int) $this->crud->getCurrentEntryId());
         $this->crud->validateRequest();
         $this->syncDerivedFields();
         $response = $this->traitUpdate();
@@ -657,6 +682,7 @@ class ReincorporacionCrudController extends CrudController
 
     public function pdf($id)
     {
+        $this->enforceEntryScopeOrFail((int) $id);
         $reincorporacion = Reincorporacion::with('empleado')->findOrFail($id);
         if (! $reincorporacion->acta_pdf_path || ! Storage::disk('public')->exists($reincorporacion->acta_pdf_path)) {
             $this->generateActaPdf($reincorporacion);
@@ -668,6 +694,7 @@ class ReincorporacionCrudController extends CrudController
 
     public function acta($id)
     {
+        $this->enforceEntryScopeOrFail((int) $id);
         $reincorporacion = Reincorporacion::with('empleado')->findOrFail($id);
         return view('admin.reincorporaciones.acta', [
             'entry' => $reincorporacion,
@@ -677,6 +704,7 @@ class ReincorporacionCrudController extends CrudController
 
     public function evidencia($id)
     {
+        $this->enforceEntryScopeOrFail((int) $id);
         $reincorporacion = Reincorporacion::findOrFail($id);
         if (! $reincorporacion->evidencia_pdf_path) {
             abort(404);

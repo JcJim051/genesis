@@ -16,6 +16,8 @@ class Pausa extends Model
         'descripcion',
         'categoria',
         'video_url',
+        'external_url',
+        'external_provider',
         'tiempo_minimo_segundos',
         'activa',
         'cliente_id',

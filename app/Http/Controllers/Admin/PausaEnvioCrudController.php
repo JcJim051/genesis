@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\Cliente;
 use App\Models\Empleado;
 use App\Models\Pausa;
@@ -17,17 +18,24 @@ use Illuminate\Support\Str;
 
 class PausaEnvioCrudController extends CrudController
 {
+    use TenantScope;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { store as traitStore; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; edit as traitEdit; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as traitDestroy; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
     public function setup(): void
     {
         CRUD::setModel(PausaEnvio::class);
         CRUD::setRoute(config('backpack.base.route_prefix') . '/pausa-envio');
         CRUD::setEntityNameStrings('envío', 'envíos');
+
+        $this->scopeMode = 'fields';
+        $this->scopeEmpresaField = 'cliente_id';
+        $this->scopePlantaField = 'sucursal_id';
+        $this->scopeModelClass = PausaEnvio::class;
+        $this->applyTenantScope($this->crud);
     }
 
     protected function setupListOperation(): void
@@ -91,14 +99,30 @@ class PausaEnvioCrudController extends CrudController
             ->label('Empresa')
             ->entity('cliente')
             ->model(Cliente::class)
-            ->attribute('nombre');
+            ->attribute('nombre')
+            ->options(function ($query) {
+                if ($this->isAdmin()) {
+                    return $query->orderBy('nombre')->get();
+                }
+
+                $empresaIds = $this->empresaIdsForUser();
+                return $query->whereIn('id', $empresaIds ?: [0])->orderBy('nombre')->get();
+            });
 
         CRUD::field('sucursal_id')
             ->type('select')
             ->label('Planta (opcional)')
             ->entity('sucursal')
             ->model(Sucursal::class)
-            ->attribute('nombre');
+            ->attribute('nombre')
+            ->options(function ($query) {
+                if ($this->isAdmin()) {
+                    return $query->orderBy('nombre')->get();
+                }
+
+                $empresaIds = $this->empresaIdsForUser();
+                return $query->whereIn('cliente_id', $empresaIds ?: [0])->orderBy('nombre')->get();
+            });
 
         CRUD::field('fecha_envio')->type('date')->label('Fecha envío');
         CRUD::field('fecha_expiracion')->type('date')->label('Fecha expiración');
@@ -111,6 +135,7 @@ class PausaEnvioCrudController extends CrudController
 
     public function store()
     {
+        $this->enforceCreateScope();
         $response = $this->traitStore();
         $this->enforcePausaScope();
         $this->crearParticipacionesFor($this->crud->entry, [
@@ -123,6 +148,8 @@ class PausaEnvioCrudController extends CrudController
 
     public function update()
     {
+        $this->enforceEntryScopeOrFail((int) $this->crud->getCurrentEntryId());
+        $this->enforceCreateScope();
         $response = $this->traitUpdate();
         $this->enforcePausaScope();
         $this->crearParticipacionesFor($this->crud->entry, [
@@ -133,8 +160,27 @@ class PausaEnvioCrudController extends CrudController
         return $response;
     }
 
+    public function show($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitShow($id);
+    }
+
+    public function edit($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitEdit($id);
+    }
+
+    public function destroy($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitDestroy($id);
+    }
+
     public function procesar(Request $request, $id)
     {
+        $this->enforceEntryScopeOrFail((int) $id);
         $envio = PausaEnvio::findOrFail($id);
         $mode = $request->input('send_mode', 'all');
         $onlyIncomplete = $request->boolean('only_incomplete', true);
@@ -263,6 +309,27 @@ class PausaEnvioCrudController extends CrudController
             'programado_modo' => null,
             'programado_solo_no_completados' => $onlyIncomplete,
         ]);
+    }
+
+    private function enforceCreateScope(): void
+    {
+        if ($this->isAdmin()) {
+            return;
+        }
+
+        $clienteId = (int) $this->crud->getRequest()->input('cliente_id');
+        $sucursalId = (int) $this->crud->getRequest()->input('sucursal_id');
+
+        $empresaIds = $this->empresaIdsForUser();
+        $plantaIds = $this->plantaIdsForUser();
+
+        if ($clienteId && ! in_array($clienteId, $empresaIds, true)) {
+            abort(403, 'No autorizado.');
+        }
+
+        if ($sucursalId && ! empty($plantaIds) && ! in_array($sucursalId, $plantaIds, true)) {
+            abort(403, 'No autorizado.');
+        }
     }
 
     private function enforcePausaScope(): void

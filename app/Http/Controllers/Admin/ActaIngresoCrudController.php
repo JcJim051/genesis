@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\ActaIngreso;
 use App\Models\Empleado;
 use App\Models\Reincorporacion;
@@ -11,11 +12,12 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class ActaIngresoCrudController extends CrudController
 {
+    use TenantScope;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; edit as traitEdit; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation { destroy as traitDestroy; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
     public function setup(): void
     {
@@ -23,6 +25,10 @@ class ActaIngresoCrudController extends CrudController
         CRUD::setRoute(config('backpack.base.route_prefix') . '/acta-ingreso');
         CRUD::setEntityNameStrings('acta ingreso', 'actas ingreso');
         $this->applyAccessRules();
+
+        $this->scopeMode = 'relation';
+        $this->scopeRelation = 'reincorporacion.empleado';
+        $this->scopeModelClass = ActaIngreso::class;
     }
 
     protected function setupListOperation(): void
@@ -109,8 +115,33 @@ class ActaIngresoCrudController extends CrudController
 
     public function pdf($id)
     {
+        $this->enforceEntryScopeOrFail((int) $id);
         $acta = ActaIngreso::with('reincorporacion.empleado')->findOrFail($id);
         $pdf = Pdf::loadView('actas.ingreso_pdf', ['acta' => $acta]);
         return $pdf->download('acta_ingreso_' . $acta->id . '.pdf');
+    }
+
+    public function show($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitShow($id);
+    }
+
+    public function edit($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitEdit($id);
+    }
+
+    public function update()
+    {
+        $this->enforceEntryScopeOrFail((int) $this->crud->getCurrentEntryId());
+        return $this->traitUpdate();
+    }
+
+    public function destroy($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitDestroy($id);
     }
 }

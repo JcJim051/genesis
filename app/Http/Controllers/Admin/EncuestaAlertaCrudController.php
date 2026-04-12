@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\Empleado;
 use App\Models\EncuestaAlerta;
 use App\Models\ProgramaCaso;
@@ -10,9 +11,10 @@ use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 
 class EncuestaAlertaCrudController extends CrudController
 {
+    use TenantScope;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
-    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; }
-    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+    use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; edit as traitEdit; }
+    use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
     public function setup(): void
     {
@@ -20,6 +22,10 @@ class EncuestaAlertaCrudController extends CrudController
         CRUD::setRoute(config('backpack.base.route_prefix') . '/encuesta-alerta');
         CRUD::setEntityNameStrings('alerta', 'alertas');
         $this->applyAccessRules();
+
+        $this->scopeMode = 'relation';
+        $this->scopeRelation = 'empleado';
+        $this->scopeModelClass = EncuestaAlerta::class;
     }
 
     protected function setupListOperation(): void
@@ -78,6 +84,7 @@ class EncuestaAlertaCrudController extends CrudController
 
     public function update()
     {
+        $this->enforceEntryScopeOrFail((int) $this->crud->getCurrentEntryId());
         $response = $this->traitUpdate();
 
         $alerta = $this->crud->entry;
@@ -98,6 +105,18 @@ class EncuestaAlertaCrudController extends CrudController
         }
 
         return $response;
+    }
+
+    public function show($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitShow($id);
+    }
+
+    public function edit($id)
+    {
+        $this->enforceEntryScopeOrFail((int) $id);
+        return $this->traitEdit($id);
     }
 
     private function applyAccessRules(): void

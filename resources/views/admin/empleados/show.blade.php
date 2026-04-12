@@ -17,6 +17,8 @@
         'programaCasos.incapacidades',
         'reincorporaciones',
         'pausaParticipaciones.envio.pausa',
+        'pausaStats',
+        'pausaBadges',
         'encuestaRespuestas.encuesta',
     ]);
 
@@ -43,6 +45,8 @@
     $totalCasos = $programaCasos->count() + $reincorporaciones->count();
     $pausas = $entry->pausaParticipaciones->sortByDesc('created_at')->values();
     $encuestas = $entry->encuestaRespuestas->sortByDesc('created_at')->values();
+    $pausaStats = $entry->pausaStats;
+    $pausaBadges = $entry->pausaBadges;
 @endphp
 
 @section('header')
@@ -215,6 +219,64 @@
                             @endforeach
                         </tbody>
                     </table>
+                </div>
+            @endif
+        </div>
+
+        <div class="card p-4 mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Gamificación Pausas</h5>
+                <span class="text-muted">Racha semanal · 3 pausas</span>
+            </div>
+
+            @if (! $pausaStats)
+                <div class="text-muted">Aún no hay datos de gamificación para esta persona.</div>
+            @else
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <div class="border rounded p-3 bg-light">
+                            <div class="fw-bold">{{ $pausaStats->total_points }}</div>
+                            <div class="text-muted">Puntos</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3 bg-light">
+                            <div class="fw-bold">{{ $pausaStats->total_completadas }}</div>
+                            <div class="text-muted">Completadas</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3 bg-light">
+                            <div class="fw-bold">{{ $pausaStats->current_streak_weeks }}</div>
+                            <div class="text-muted">Racha actual</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border rounded p-3 bg-light">
+                            <div class="fw-bold">{{ $pausaStats->best_streak_weeks }}</div>
+                            <div class="text-muted">Mejor racha</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <div class="text-muted mb-2">Badges</div>
+                    @if ($pausaBadges->isEmpty())
+                        <div class="text-muted">Sin badges aún.</div>
+                    @else
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach ($pausaBadges as $badge)
+                                @php
+                                    $awardedAt = $badge->pivot?->awarded_at
+                                        ? \Carbon\Carbon::parse($badge->pivot->awarded_at)->format('Y-m-d')
+                                        : null;
+                                @endphp
+                                <span class="badge bg-secondary">
+                                    {{ $badge->nombre }}@if($awardedAt) · {{ $awardedAt }}@endif
+                                </span>
+                            @endforeach
+                        </div>
+                    @endif
                 </div>
             @endif
         </div>

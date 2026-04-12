@@ -6,6 +6,23 @@
         <div class="card p-4">
             <h4 class="mb-3">Constructor de Pausa Activa</h4>
 
+            @if ($errors->any())
+                <div class="alert alert-danger">
+                    <strong>Revisa los campos:</strong>
+                    <ul class="mb-0">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            @if (session('success'))
+                <div class="alert alert-success">
+                    {{ session('success') }}
+                </div>
+            @endif
+
             <form method="POST" action="{{ $pausa->exists ? backpack_url('pausa/' . $pausa->id . '/builder') : backpack_url('pausa/builder') }}">
                 @csrf
 
@@ -26,6 +43,26 @@
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Video URL</label>
                         <input type="url" class="form-control" name="video_url" value="{{ old('video_url', $pausa->video_url) }}">
+                        @error('video_url')
+                            <div class="text-danger mt-1">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Actividad externa (URL)</label>
+                        <input type="url" class="form-control" name="external_url" value="{{ old('external_url', $pausa->external_url) }}" placeholder="https://...">
+                        <small class="text-muted">Dominios permitidos: educaplay.com, wordwall.net, genial.ly</small>
+                        @error('external_url')
+                            <div class="text-danger mt-1">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Proveedor externo</label>
+                        <select class="form-control" name="external_provider">
+                            <option value="">Seleccione</option>
+                            @foreach (['educaplay' => 'Educaplay','wordwall' => 'Wordwall','genially' => 'Genially'] as $key => $label)
+                                <option value="{{ $key }}" @selected(old('external_provider', $pausa->external_provider) === $key)>{{ $label }}</option>
+                            @endforeach
+                        </select>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Empresa (alcance)</label>

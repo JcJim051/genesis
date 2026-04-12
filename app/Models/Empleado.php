@@ -74,6 +74,17 @@ class Empleado extends Model
         return $this->hasMany(EncuestaRespuesta::class, 'empleado_id');
     }
 
+    public function pausaStats()
+    {
+        return $this->hasOne(EmpleadoPausaStat::class, 'empleado_id');
+    }
+
+    public function pausaBadges()
+    {
+        return $this->belongsToMany(PausaBadge::class, 'empleado_pausa_badges', 'empleado_id', 'badge_id')
+            ->withPivot('awarded_at');
+    }
+
     public function telegramActivationLink()
     {
         return $this->hasOne(TelegramActivationLink::class, 'empleado_id');

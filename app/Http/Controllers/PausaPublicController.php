@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\PausaEvento;
 use App\Models\PausaParticipacion;
 use App\Models\PausaParticipacionItem;
+use App\Services\PausaGamificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -106,9 +107,17 @@ class PausaPublicController extends Controller
         });
 
         if ($participacion->estado !== 'completada') {
-            return view('pausas.gracias', ['mensaje' => 'Gracias. Tu participación quedó registrada, pero debes permanecer más tiempo en pantalla para completar la pausa activa.']);
+            return view('pausas.gracias', [
+                'mensaje' => 'Gracias. Tu participación quedó registrada, pero debes permanecer más tiempo en pantalla para completar la pausa activa.',
+            ]);
         }
 
-        return view('pausas.gracias', ['mensaje' => 'Gracias por completar la pausa activa.']);
+        $gamification = app(PausaGamificationService::class)->awardForCompletion($participacion);
+
+        return view('pausas.gracias', [
+            'mensaje' => 'Gracias por completar la pausa activa.',
+            'stats' => $gamification['stats'] ?? null,
+            'awardedBadges' => $gamification['awarded'] ?? collect(),
+        ]);
     }
 }
