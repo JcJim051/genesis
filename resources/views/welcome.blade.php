@@ -67,6 +67,12 @@
         .features { margin-top: 64px; }
         .features h2 { font-size: 24px; margin: 0; }
         .features-grid { display: grid; gap: 20px; margin-top: 24px; }
+        .section-kicker { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #2563eb; }
+        .section-kicker span { width: 18px; height: 18px; border-radius: 6px; background: linear-gradient(135deg,#60a5fa,#34d399); display: inline-block; }
+        .card--blue { background: linear-gradient(145deg, #eef5ff 0%, #ffffff 55%); border-color: #dbeafe; }
+        .card--green { background: linear-gradient(145deg, #ecfdf3 0%, #ffffff 55%); border-color: #bbf7d0; }
+        .card--violet { background: linear-gradient(145deg, #f5f3ff 0%, #ffffff 55%); border-color: #ddd6fe; }
+        .card--teal { background: linear-gradient(145deg, #ecfeff 0%, #ffffff 55%); border-color: #a5f3fc; }
         .explore { margin-top: 48px; }
         .explore-grid { display: grid; gap: 20px; margin-top: 20px; }
         .explore-list { margin: 12px 0 0; padding: 0; list-style: none; color: var(--gen-muted); font-size: 13px; }
@@ -158,17 +164,18 @@
         </section>
 
         <section id="features" class="features">
-            <h2>Features</h2>
+            <div class="section-kicker"><span></span>Características</div>
+            <h2 style="margin-top:8px;">Features</h2>
             <div class="features-grid">
-                <div class="card">
+                <div class="card card--blue">
                     <div class="card-title">Programas y casos</div>
                     <div class="card-text">Seguimiento integral de reincorporaciones, incapacidades y evolución del personal.</div>
                 </div>
-                <div class="card">
+                <div class="card card--green">
                     <div class="card-title">Pausas activas</div>
                     <div class="card-text">Gamificación, tiempos controlados y participación visible por planta.</div>
                 </div>
-                <div class="card">
+                <div class="card card--violet">
                     <div class="card-title">Encuestas inteligentes</div>
                     <div class="card-text">Detección temprana de riesgos con métricas y alertas automatizadas.</div>
                 </div>
@@ -176,9 +183,10 @@
         </section>
 
         <section id="explorar" class="explore">
-            <h2>Explorar funciones</h2>
+            <div class="section-kicker"><span></span>Detalle funcional</div>
+            <h2 style="margin-top:8px;">Explorar funciones</h2>
             <div class="explore-grid">
-                <div class="card">
+                <div class="card card--teal">
                     <div class="card-title">Gestión clínica y SST</div>
                     <ul class="explore-list">
                         <li>• Reincorporaciones con actas y evidencia</li>
@@ -187,7 +195,7 @@
                         <li>• Mapas diagnósticos configurables</li>
                     </ul>
                 </div>
-                <div class="card">
+                <div class="card card--violet">
                     <div class="card-title">Participación y comunicación</div>
                     <ul class="explore-list">
                         <li>• Pausas activas con temporizador y foco</li>
@@ -196,7 +204,7 @@
                         <li>• Activación Telegram con trazabilidad</li>
                     </ul>
                 </div>
-                <div class="card">
+                <div class="card card--green">
                     <div class="card-title">Reportes y control</div>
                     <ul class="explore-list">
                         <li>• Exportes en Excel por filtro</li>
@@ -205,7 +213,7 @@
                         <li>• Control multiempresa y permisos</li>
                     </ul>
                 </div>
-                <div class="card">
+                <div class="card card--blue">
                     <div class="card-title">Automatización operativa</div>
                     <ul class="explore-list">
                         <li>• Programación de envíos por fecha/hora</li>
@@ -218,29 +226,30 @@
         </section>
 
         <section id="beneficios" class="benefits">
-            <h2>Beneficios</h2>
+            <div class="section-kicker"><span></span>Impacto</div>
+            <h2 style="margin-top:8px;">Beneficios</h2>
             <div class="benefits-grid">
-                <div class="card benefit-item">
+                <div class="card card--blue benefit-item">
                     <div class="benefit-title">Gestión por empresa y planta</div>
                     <div class="benefit-text">Controla accesos, reportes y casos por cada cliente y sede sin cruces de información.</div>
                 </div>
-                <div class="card benefit-item">
+                <div class="card card--green benefit-item">
                     <div class="benefit-title">Alertas preventivas</div>
                     <div class="benefit-text">Detecta riesgos temprano con encuestas inteligentes y reglas clínicas configurables.</div>
                 </div>
-                <div class="card benefit-item">
+                <div class="card card--violet benefit-item">
                     <div class="benefit-title">Ejecución y evidencia</div>
                     <div class="benefit-text">Pausas activas con temporizador, foco y registro automático de participación.</div>
                 </div>
-                <div class="card benefit-item">
+                <div class="card card--teal benefit-item">
                     <div class="benefit-title">Automatización operativa</div>
                     <div class="benefit-text">Envíos programados por Telegram o correo con seguimiento del estado.</div>
                 </div>
-                <div class="card benefit-item">
+                <div class="card card--green benefit-item">
                     <div class="benefit-title">Trazabilidad SST</div>
                     <div class="benefit-text">Historial completo de reincorporaciones, incapacidades y casos con PDFs y evidencias.</div>
                 </div>
-                <div class="card benefit-item">
+                <div class="card card--blue benefit-item">
                     <div class="benefit-title">Reportes exportables</div>
                     <div class="benefit-text">Descarga en Excel participaciones y métricas por empresa/planta en segundos.</div>
                 </div>
