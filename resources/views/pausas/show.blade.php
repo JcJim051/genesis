@@ -154,6 +154,7 @@
             let timerId = null;
             const minSeconds = parseInt(timeMinEl?.textContent || '0', 10);
             let gameMaximized = false;
+            let gameMaximizeConfirmed = false;
             const gameFrame = document.getElementById('external_game_frame');
             const maximizeBtn = document.getElementById('btn-maximize-game');
             const gameStatus = document.getElementById('game_status');
@@ -162,7 +163,7 @@
             const canSubmit = () => {
                 const hasGame = !!gameFrame;
                 if (hasGame) {
-                    return seconds >= minSeconds && gameMaximized;
+                    return seconds >= minSeconds && gameMaximizeConfirmed;
                 }
                 return seconds >= minSeconds;
             };
@@ -216,13 +217,15 @@
 
             if (maximizeBtn && gameFrame) {
                 maximizeBtn.addEventListener('click', () => {
+                    // Confirmamos el intento explícito del usuario.
+                    gameMaximizeConfirmed = true;
                     if (gameFrame.requestFullscreen) {
                         gameFrame.requestFullscreen().catch(() => {});
                     } else if (gameFrame.webkitRequestFullscreen) {
                         gameFrame.webkitRequestFullscreen();
                     }
                     gameMaximized = true;
-                    if (gameStatus) gameStatus.textContent = 'Juego maximizado.';
+                    if (gameStatus) gameStatus.textContent = 'Intento de maximización registrado.';
                     updateSubmitState();
                 });
 
@@ -232,7 +235,11 @@
                         if (gameStatus) gameStatus.textContent = 'Juego maximizado.';
                     } else {
                         gameMaximized = false;
-                        if (gameStatus) gameStatus.textContent = 'Debes maximizar el juego para finalizar.';
+                        if (gameStatus) {
+                            gameStatus.textContent = gameMaximizeConfirmed
+                                ? 'Maximización registrada. Puedes finalizar al cumplir el tiempo mínimo.'
+                                : 'Debes maximizar el juego para finalizar.';
+                        }
                     }
                     updateSubmitState();
                 });
