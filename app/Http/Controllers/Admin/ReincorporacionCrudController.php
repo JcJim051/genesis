@@ -41,7 +41,8 @@ class ReincorporacionCrudController extends CrudController
             'name' => 'empleado',
             'type' => 'closure',
             'label' => 'Persona',
-            'function' => fn ($entry) => optional($entry->empleado)->nombre,
+            'escaped' => false,
+            'function' => fn ($entry) => \App\Support\EmpleadoLink::render($entry->empleado),
         ]);
         CRUD::column('estado');
         CRUD::column('origen');
@@ -57,7 +58,8 @@ class ReincorporacionCrudController extends CrudController
             'name' => 'empleado',
             'type' => 'closure',
             'label' => 'Persona',
-            'function' => fn ($entry) => optional($entry->empleado)->nombre,
+            'escaped' => false,
+            'function' => fn ($entry) => \App\Support\EmpleadoLink::render($entry->empleado),
         ]);
         CRUD::column('estado');
         CRUD::column('origen');
@@ -156,7 +158,7 @@ class ReincorporacionCrudController extends CrudController
             abort(403);
         }
 
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isPlatformAdmin()) {
             return;
         }
 
@@ -170,19 +172,19 @@ class ReincorporacionCrudController extends CrudController
 
     private function applyListScope(): void
     {
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isAdminBypass()) {
             return;
         }
 
         if (backpack_user()->hasAnyRole(['Coordinador general'])) {
-            $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+            $empresaIds = \App\Support\TenantSelection::empresaIds();
             $empleadoIds = Empleado::whereIn('cliente_id', $empresaIds ?: [0])->pluck('id');
             $this->crud->addClause('whereIn', 'empleado_id', $empleadoIds);
             return;
         }
 
         if (backpack_user()->hasAnyRole(['Coordinador de planta'])) {
-            $plantaIds = backpack_user()->plantas()->pluck('sucursals.id')->all();
+            $plantaIds = \App\Support\TenantSelection::plantaIds();
             $empleadoIds = Empleado::whereIn('sucursal_id', $plantaIds ?: [0])->pluck('id');
             $this->crud->addClause('whereIn', 'empleado_id', $empleadoIds);
             return;

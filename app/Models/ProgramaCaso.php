@@ -45,4 +45,9 @@ class ProgramaCaso extends Model
     {
         return $this->hasMany(ProgramaCasoHistorial::class, 'programa_caso_id');
     }
+
+    public function iptInspections()
+    {
+        return $this->hasMany(IptInspection::class, 'programa_caso_id')->orderByDesc('fecha_inspeccion');
+    }
 }

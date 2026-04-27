@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\ClienteCrudController;
 use App\Http\Controllers\Admin\Cie10CrudController;
 use App\Http\Controllers\Admin\Cie10LookupController;
 use App\Http\Controllers\Admin\DiagnosticoProgramaMapCrudController;
+use App\Http\Controllers\Admin\ColombiaHolidayCrudController;
 use App\Http\Controllers\Admin\EncuestaAlertaCrudController;
 use App\Http\Controllers\Admin\EncuestaCrudController;
 use App\Http\Controllers\Admin\EncuestaEnvioCrudController;
@@ -16,6 +17,8 @@ use App\Http\Controllers\Admin\EmpleadoAreaCrudController;
 use App\Http\Controllers\Admin\EmpleadoCargoCrudController;
 use App\Http\Controllers\Admin\EmpleadoCrudController;
 use App\Http\Controllers\Admin\IncapacidadCrudController;
+use App\Http\Controllers\Admin\IptInspectionCrudController;
+use App\Http\Controllers\Admin\IptTemplateCrudController;
 use App\Http\Controllers\Admin\PermissionCrudController;
 use App\Http\Controllers\Admin\ProgramaCasoCrudController;
 use App\Http\Controllers\Admin\ProgramaCrudController;
@@ -29,6 +32,7 @@ use App\Http\Controllers\Admin\PausaEnvioCrudController;
 use App\Http\Controllers\Admin\PausaParticipacionCrudController;
 use App\Http\Controllers\Admin\RoleCrudController;
 use App\Http\Controllers\Admin\SucursalCrudController;
+use App\Http\Controllers\Admin\TenantScopeController;
 use App\Http\Controllers\Admin\UserCrudController;
 
 Route::group([
@@ -39,6 +43,7 @@ Route::group([
     ),
 ], function () {
     Route::crud('user', UserCrudController::class);
+    Route::post('scope/select', [TenantScopeController::class, 'update']);
     Route::crud('role', RoleCrudController::class);
     Route::crud('permission', PermissionCrudController::class);
     Route::crud('cliente', ClienteCrudController::class);
@@ -63,12 +68,26 @@ Route::group([
     Route::get('cie10/import', [Cie10CrudController::class, 'importForm']);
     Route::post('cie10/import', [Cie10CrudController::class, 'import']);
     Route::crud('programa-caso', ProgramaCasoCrudController::class);
-    Route::get('programa-caso/{id}/accept', [ProgramaCasoCrudController::class, 'accept']);
-    Route::get('programa-caso/{id}/probable', [ProgramaCasoCrudController::class, 'probable']);
-    Route::get('programa-caso/{id}/reject', [ProgramaCasoCrudController::class, 'reject']);
-    Route::get('programa-caso/{id}/retirar', [ProgramaCasoCrudController::class, 'retirar']);
+    Route::post('programa-caso/{id}/accept', [ProgramaCasoCrudController::class, 'accept']);
+    Route::post('programa-caso/{id}/probable', [ProgramaCasoCrudController::class, 'probable']);
+    Route::post('programa-caso/{id}/reject', [ProgramaCasoCrudController::class, 'reject']);
+    Route::post('programa-caso/{id}/retirar', [ProgramaCasoCrudController::class, 'retirar']);
     Route::crud('diagnostico-programa', DiagnosticoProgramaMapCrudController::class);
     Route::get('diagnostico-programa/defaults', [DiagnosticoProgramaMapCrudController::class, 'defaults']);
+    Route::crud('ipt-template', IptTemplateCrudController::class);
+    Route::get('ipt-template/seed-vdt', [IptTemplateCrudController::class, 'seedVdt']);
+    Route::get('ipt-template/builder', [IptTemplateCrudController::class, 'builder']);
+    Route::post('ipt-template/builder', [IptTemplateCrudController::class, 'builderSave']);
+    Route::get('ipt-template/{id}/builder', [IptTemplateCrudController::class, 'builder'])->whereNumber('id');
+    Route::post('ipt-template/{id}/builder', [IptTemplateCrudController::class, 'builderSave'])->whereNumber('id');
+    Route::crud('ipt-inspection', IptInspectionCrudController::class);
+    Route::get('programa-caso/{id}/ipt/create-initial', [IptInspectionCrudController::class, 'createInitialForCase'])->whereNumber('id');
+    Route::post('programa-caso/{id}/ipt/create-initial', [IptInspectionCrudController::class, 'storeInitialForCase'])->whereNumber('id');
+    Route::get('ipt/{id}/create-followup', [IptInspectionCrudController::class, 'createFollowup'])->whereNumber('id');
+    Route::post('ipt/{id}/create-followup', [IptInspectionCrudController::class, 'storeFollowup'])->whereNumber('id');
+    Route::get('ipt/{id}/edit', [IptInspectionCrudController::class, 'editForm'])->whereNumber('id');
+    Route::post('ipt/{id}/edit', [IptInspectionCrudController::class, 'updateForm'])->whereNumber('id');
+    Route::crud('colombia-holiday', ColombiaHolidayCrudController::class);
     Route::crud('incapacidad', IncapacidadCrudController::class);
     Route::get('incapacidad/import', [IncapacidadCrudController::class, 'importForm']);
     Route::post('incapacidad/import', [IncapacidadCrudController::class, 'import']);

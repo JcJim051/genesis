@@ -8,7 +8,15 @@
     ];
     $breadcrumbs = $breadcrumbs ?? $defaultBreadcrumbs;
 
-    $entry->loadMissing(['programa', 'empleado', 'empleado.cliente', 'empleado.sucursal', 'incapacidades', 'historial.usuario']);
+    $entry->loadMissing([
+        'programa',
+        'empleado',
+        'empleado.cliente',
+        'empleado.sucursal',
+        'incapacidades',
+        'historial.usuario',
+        'iptInspections.empleado',
+    ]);
 
     $origen = strtolower((string) ($entry->origen ?? ''));
     $sugerido = strtolower((string) ($entry->sugerido_por ?? ''));
@@ -34,6 +42,11 @@
                 ->first();
         }
     }
+
+    $iptInspections = $entry->iptInspections->sortByDesc('fecha_inspeccion')->values();
+    $createInitialUrl = ($entry->programa?->slug ?? null) === 'osteomuscular'
+        ? backpack_url('programa-caso/' . $entry->id . '/ipt/create-initial')
+        : null;
 @endphp
 
 @section('header')
@@ -49,19 +62,36 @@
         </section>
         <div class="d-flex gap-2">
             @if (in_array(strtolower(trim($entry->estado ?? '')), ['no evaluado','probable'], true))
-                <a class="btn btn-sm btn-success" href="{{ backpack_url('programa-caso/' . $entry->getKey() . '/accept') }}" title="Confirmado">
+                <a class="btn btn-sm btn-success"
+                   href="#"
+                   data-programa-decision-url="{{ backpack_url('programa-caso/' . $entry->getKey() . '/accept') }}"
+                   data-programa-decision-label="Confirmado"
+                   title="Confirmado">
                     <i class="la la-check"></i> Confirmado
                 </a>
                 @if ($entry->estado === 'No evaluado')
-                    <a class="btn btn-sm" style="background-color:#f59e0b;color:#fff;border-color:#f59e0b;" href="{{ backpack_url('programa-caso/' . $entry->getKey() . '/probable') }}" title="Probable">
+                    <a class="btn btn-sm"
+                       style="background-color:#f59e0b;color:#fff;border-color:#f59e0b;"
+                       href="#"
+                       data-programa-decision-url="{{ backpack_url('programa-caso/' . $entry->getKey() . '/probable') }}"
+                       data-programa-decision-label="Probable"
+                       title="Probable">
                         <i class="la la-exclamation-triangle"></i> Probable
                     </a>
                 @endif
-                <a class="btn btn-sm btn-danger" href="{{ backpack_url('programa-caso/' . $entry->getKey() . '/reject') }}" title="No caso">
+                <a class="btn btn-sm btn-danger"
+                   href="#"
+                   data-programa-decision-url="{{ backpack_url('programa-caso/' . $entry->getKey() . '/reject') }}"
+                   data-programa-decision-label="No caso"
+                   title="No caso">
                     <i class="la la-times"></i> No caso
                 </a>
             @elseif (strtolower(trim($entry->estado ?? '')) === 'confirmado')
-                <a class="btn btn-sm btn-danger" href="{{ backpack_url('programa-caso/' . $entry->getKey() . '/retirar') }}" title="No caso">
+                <a class="btn btn-sm btn-danger"
+                   href="#"
+                   data-programa-decision-url="{{ backpack_url('programa-caso/' . $entry->getKey() . '/retirar') }}"
+                   data-programa-decision-label="Retirar"
+                   title="No caso">
                     <i class="la la-times"></i> Retirar
                 </a>
             @endif
@@ -181,6 +211,7 @@
                                 <th>Fecha</th>
                                 <th>De</th>
                                 <th>A</th>
+                                <th>Observación</th>
                                 <th>Usuario</th>
                             </tr>
                         </thead>
@@ -190,6 +221,7 @@
                                     <td>{{ $item->created_at?->format('Y-m-d H:i') }}</td>
                                     <td>{{ $item->estado_anterior ?? '—' }}</td>
                                     <td>{{ $item->estado_nuevo ?? '—' }}</td>
+                                    <td>{{ $item->observacion ?? '—' }}</td>
                                     <td>{{ $item->usuario?->name ?? '—' }}</td>
                                 </tr>
                             @endforeach
@@ -198,6 +230,16 @@
                 </div>
             </div>
         @endif
+
+        @if (($entry->programa?->slug ?? null) === 'osteomuscular' || $iptInspections->isNotEmpty())
+            @include('admin.ipt_inspections._history_card', [
+                'iptInspections' => $iptInspections,
+                'createInitialUrl' => $createInitialUrl,
+                'showPersonaColumn' => false,
+            ])
+        @endif
     </div>
 </div>
+
+@include('admin.programa_casos._decision_modal')
 @endsection

@@ -486,7 +486,7 @@ class IncapacidadCrudController extends CrudController
             abort(403);
         }
 
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isPlatformAdmin()) {
             return;
         }
 
@@ -503,7 +503,7 @@ class IncapacidadCrudController extends CrudController
             abort(403);
         }
 
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isPlatformAdmin()) {
             return;
         }
 
@@ -525,18 +525,47 @@ class IncapacidadCrudController extends CrudController
             return;
         }
 
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isAdminBypass()) {
             return;
         }
 
-        if (backpack_user()->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
-            $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+        if (\App\Support\TenantSelection::isPlatformAdmin()) {
+            $plantaIds = \App\Support\TenantSelection::plantaIds();
+            if (! empty($plantaIds)) {
+                $this->crud->addClause('whereIn', 'sucursal_id', $plantaIds);
+                return;
+            }
+
+            $empresaIds = \App\Support\TenantSelection::empresaIds();
+            if (\App\Support\TenantSelection::selectedEmpresaIncludesUnassigned()) {
+                $this->crud->addClause(function ($q) use ($empresaIds) {
+                    $q->whereIn('cliente_id', $empresaIds ?: [0])
+                        ->orWhereNull('cliente_id')
+                        ->orWhere('cliente_id', 0);
+                });
+                return;
+            }
+
             $this->crud->addClause('whereIn', 'cliente_id', $empresaIds ?: [0]);
             return;
         }
 
+        if (backpack_user()->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
+            $empresaIds = \App\Support\TenantSelection::empresaIds();
+            if (\App\Support\TenantSelection::selectedEmpresaIncludesUnassigned()) {
+                $this->crud->addClause(function ($q) use ($empresaIds) {
+                    $q->whereIn('cliente_id', $empresaIds ?: [0])
+                        ->orWhereNull('cliente_id')
+                        ->orWhere('cliente_id', 0);
+                });
+            } else {
+                $this->crud->addClause('whereIn', 'cliente_id', $empresaIds ?: [0]);
+            }
+            return;
+        }
+
         if (backpack_user()->hasAnyRole(['Coordinador de planta', 'Asesor externo planta'])) {
-            $plantaIds = backpack_user()->plantas()->pluck('sucursals.id')->all();
+            $plantaIds = \App\Support\TenantSelection::plantaIds();
             $this->crud->addClause('whereIn', 'sucursal_id', $plantaIds ?: [0]);
             return;
         }

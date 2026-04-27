@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin\Traits;
 
 use App\Models\Empleado;
+use App\Support\TenantSelection;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanel;
 
 trait TenantScope
@@ -20,17 +21,17 @@ trait TenantScope
 
     protected function empresaIdsForUser(): array
     {
-        return backpack_user()?->empresas()->pluck('clientes.id')->all() ?? [];
+        return TenantSelection::empresaIds();
     }
 
     protected function plantaIdsForUser(): array
     {
-        return backpack_user()?->plantas()->pluck('sucursals.id')->all() ?? [];
+        return TenantSelection::plantaIds();
     }
 
     protected function applyTenantScope($queryOrCrud): void
     {
-        if ($this->isAdmin()) {
+        if ($this->isAdmin() && TenantSelection::isAdminBypass()) {
             return;
         }
 
@@ -54,7 +55,7 @@ trait TenantScope
 
     protected function enforceEntryScopeOrFail(int $id): void
     {
-        if ($this->isAdmin() || ! $this->scopeModelClass) {
+        if (($this->isAdmin() && TenantSelection::isAdminBypass()) || ! $this->scopeModelClass) {
             return;
         }
 
@@ -86,12 +87,21 @@ trait TenantScope
     {
         $empresaIds = $this->empresaIdsForUser();
         $plantaIds = $this->plantaIdsForUser();
+        $includeUnassigned = TenantSelection::selectedEmpresaIncludesUnassigned();
 
-        $constraint = function ($q) use ($empresaIds, $plantaIds) {
+        $constraint = function ($q) use ($empresaIds, $plantaIds, $includeUnassigned) {
             if (! empty($plantaIds)) {
                 $q->whereIn('sucursal_id', $plantaIds);
             } elseif (! empty($empresaIds)) {
-                $q->whereIn('cliente_id', $empresaIds);
+                if ($includeUnassigned) {
+                    $q->where(function ($inner) use ($empresaIds) {
+                        $inner->whereIn('cliente_id', $empresaIds)
+                            ->orWhereNull('cliente_id')
+                            ->orWhere('cliente_id', 0);
+                    });
+                } else {
+                    $q->whereIn('cliente_id', $empresaIds);
+                }
             } else {
                 $q->whereRaw('1=0');
             }
@@ -108,12 +118,21 @@ trait TenantScope
     {
         $empresaIds = $this->empresaIdsForUser();
         $plantaIds = $this->plantaIdsForUser();
+        $includeUnassigned = TenantSelection::selectedEmpresaIncludesUnassigned();
 
-        $apply = function ($q) use ($empresaIds, $plantaIds, $empresaField, $plantaField) {
+        $apply = function ($q) use ($empresaIds, $plantaIds, $empresaField, $plantaField, $includeUnassigned) {
             if (! empty($plantaIds) && $plantaField) {
                 $q->whereIn($plantaField, $plantaIds);
             } elseif (! empty($empresaIds) && $empresaField) {
-                $q->whereIn($empresaField, $empresaIds);
+                if ($includeUnassigned) {
+                    $q->where(function ($inner) use ($empresaIds, $empresaField) {
+                        $inner->whereIn($empresaField, $empresaIds)
+                            ->orWhereNull($empresaField)
+                            ->orWhere($empresaField, 0);
+                    });
+                } else {
+                    $q->whereIn($empresaField, $empresaIds);
+                }
             } else {
                 $q->whereRaw('1=0');
             }
@@ -132,12 +151,21 @@ trait TenantScope
     {
         $empresaIds = $this->empresaIdsForUser();
         $plantaIds = $this->plantaIdsForUser();
+        $includeUnassigned = TenantSelection::selectedEmpresaIncludesUnassigned();
 
         $sub = Empleado::query()->select('cedula');
         if (! empty($plantaIds)) {
             $sub->whereIn('sucursal_id', $plantaIds);
         } elseif (! empty($empresaIds)) {
-            $sub->whereIn('cliente_id', $empresaIds);
+            if ($includeUnassigned) {
+                $sub->where(function ($q) use ($empresaIds) {
+                    $q->whereIn('cliente_id', $empresaIds)
+                        ->orWhereNull('cliente_id')
+                        ->orWhere('cliente_id', 0);
+                });
+            } else {
+                $sub->whereIn('cliente_id', $empresaIds);
+            }
         } else {
             $sub->whereRaw('1=0');
         }

@@ -45,7 +45,8 @@ class PausaParticipacionCrudController extends CrudController
             'name' => 'empleado',
             'type' => 'closure',
             'label' => 'Persona',
-            'function' => fn ($entry) => optional($entry->empleado)->nombre,
+            'escaped' => false,
+            'function' => fn ($entry) => \App\Support\EmpleadoLink::render($entry->empleado),
         ]);
         CRUD::addColumn([
             'name' => 'correo',
@@ -126,12 +127,12 @@ class PausaParticipacionCrudController extends CrudController
             abort(403);
         }
 
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isAdminBypass()) {
             return;
         }
 
-        $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
-        $plantaIds = backpack_user()->plantas()->pluck('sucursals.id')->all();
+        $empresaIds = \App\Support\TenantSelection::empresaIds();
+        $plantaIds = \App\Support\TenantSelection::plantaIds();
 
         $constraint = function ($q) use ($empresaIds, $plantaIds) {
             if (! empty($plantaIds)) {
@@ -187,8 +188,8 @@ class PausaParticipacionCrudController extends CrudController
     private function getEmpresas()
     {
         $query = Cliente::orderBy('nombre');
-        if (! backpack_user()->hasRole('Administrador')) {
-            $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+        if (! \App\Support\TenantSelection::isAdminBypass()) {
+            $empresaIds = \App\Support\TenantSelection::empresaIds();
             $query->whereIn('id', $empresaIds ?: [0]);
         }
         return $query->get();
@@ -197,8 +198,8 @@ class PausaParticipacionCrudController extends CrudController
     private function getPlantas()
     {
         $query = Sucursal::orderBy('nombre');
-        if (! backpack_user()->hasRole('Administrador')) {
-            $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+        if (! \App\Support\TenantSelection::isAdminBypass()) {
+            $empresaIds = \App\Support\TenantSelection::empresaIds();
             $query->whereIn('cliente_id', $empresaIds ?: [0]);
         }
         return $query->get();

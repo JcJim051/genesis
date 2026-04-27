@@ -76,7 +76,7 @@ class ActaIngresoCrudController extends CrudController
             abort(403);
         }
 
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isPlatformAdmin()) {
             return;
         }
 
@@ -90,12 +90,12 @@ class ActaIngresoCrudController extends CrudController
 
     private function applyListScope(): void
     {
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isAdminBypass()) {
             return;
         }
 
         if (backpack_user()->hasAnyRole(['Coordinador general'])) {
-            $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+            $empresaIds = \App\Support\TenantSelection::empresaIds();
             $empleadoIds = Empleado::whereIn('cliente_id', $empresaIds ?: [0])->pluck('id');
             $reincIds = Reincorporacion::whereIn('empleado_id', $empleadoIds)->pluck('id');
             $this->crud->addClause('whereIn', 'reincorporacion_id', $reincIds);
@@ -103,7 +103,7 @@ class ActaIngresoCrudController extends CrudController
         }
 
         if (backpack_user()->hasAnyRole(['Coordinador de planta'])) {
-            $plantaIds = backpack_user()->plantas()->pluck('sucursals.id')->all();
+            $plantaIds = \App\Support\TenantSelection::plantaIds();
             $empleadoIds = Empleado::whereIn('sucursal_id', $plantaIds ?: [0])->pluck('id');
             $reincIds = Reincorporacion::whereIn('empleado_id', $empleadoIds)->pluck('id');
             $this->crud->addClause('whereIn', 'reincorporacion_id', $reincIds);

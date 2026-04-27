@@ -6,8 +6,10 @@ use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\Empleado;
 use App\Models\Programa;
 use App\Models\ProgramaCaso;
+use App\Support\TenantSelection;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+use Illuminate\Http\Request;
 
 class ProgramaCasoCrudController extends CrudController
 {
@@ -32,6 +34,7 @@ class ProgramaCasoCrudController extends CrudController
 
     protected function setupListOperation(): void
     {
+        $this->crud->setListView('admin.programa_casos.list');
         $this->applyListScope();
         $this->crud->query->with('incapacidades');
 
@@ -55,13 +58,15 @@ class ProgramaCasoCrudController extends CrudController
         $this->crud->addButtonFromView('line', 'programa_caso_accept', 'programa_caso_accept', 'beginning');
         $this->crud->addButtonFromView('line', 'programa_caso_probable', 'programa_caso_probable', 'beginning');
         $this->crud->addButtonFromView('line', 'programa_caso_reject', 'programa_caso_reject', 'beginning');
+        $this->crud->addButtonFromView('line', 'programa_caso_ipt_initial', 'programa_caso_ipt_initial', 'beginning');
         $this->crud->addButtonFromView('line', 'programa_caso_retirar', 'programa_caso_retirar', 'end');
 
         CRUD::addColumn([
             'name' => 'empleado',
             'type' => 'closure',
             'label' => 'Persona',
-            'function' => fn ($entry) => optional($entry->empleado)->nombre,
+            'escaped' => false,
+            'function' => fn ($entry) => \App\Support\EmpleadoLink::render($entry->empleado),
             'searchLogic' => function ($query, $column, $searchTerm) {
                 $query->orWhereHas('empleado', function ($q) use ($searchTerm) {
                     $q->where('nombre', 'like', '%' . $searchTerm . '%')
@@ -174,14 +179,18 @@ class ProgramaCasoCrudController extends CrudController
 
         $empleadosQuery = Empleado::query()->whereNull('fecha_retiro');
 
-        if (! backpack_user()->hasRole('Administrador')) {
-            if (backpack_user()->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
-                $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+        if (! \App\Support\TenantSelection::isAdminBypass()) {
+            if (TenantSelection::isPlatformAdmin()) {
+                $empleadoIds = $this->scopedEmpleadoIds();
+                $baseQuery->whereIn('empleado_id', $empleadoIds->isEmpty() ? [0] : $empleadoIds);
+                $empleadosQuery->whereIn('id', $empleadoIds->isEmpty() ? [0] : $empleadoIds);
+            } elseif (backpack_user()->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
+                $empresaIds = TenantSelection::empresaIds();
                 $empleadoIds = Empleado::whereIn('cliente_id', $empresaIds ?: [0])->pluck('id');
                 $baseQuery->whereIn('empleado_id', $empleadoIds);
                 $empleadosQuery->whereIn('cliente_id', $empresaIds ?: [0]);
             } elseif (backpack_user()->hasAnyRole(['Coordinador de planta', 'Asesor externo planta'])) {
-                $plantaIds = backpack_user()->plantas()->pluck('sucursals.id')->all();
+                $plantaIds = TenantSelection::plantaIds();
                 $empleadoIds = Empleado::whereIn('sucursal_id', $plantaIds ?: [0])->pluck('id');
                 $baseQuery->whereIn('empleado_id', $empleadoIds);
                 $empleadosQuery->whereIn('sucursal_id', $plantaIds ?: [0]);
@@ -271,43 +280,59 @@ class ProgramaCasoCrudController extends CrudController
         return $this->traitDestroy($id);
     }
 
-    public function accept($id)
+    public function accept(Request $request, $id)
     {
         $this->enforceEntryScopeOrFail((int) $id);
+        $data = $request->validate([
+            'observacion' => 'required|string|min:5|max:1000',
+            'return_url' => 'nullable|string|max:2000',
+        ]);
         $entry = ProgramaCaso::findOrFail($id);
         $this->authorizeDecision($entry);
-        $this->updateEstado($entry, 'Confirmado');
-        return redirect()->to(backpack_url('programa-caso') . '?estado=No%20evaluado');
+        $this->updateEstado($entry, 'Confirmado', $data['observacion']);
+        return $this->redirectAfterDecision($request, backpack_url('programa-caso') . '?estado=No%20evaluado');
     }
 
-    public function probable($id)
+    public function probable(Request $request, $id)
     {
         $this->enforceEntryScopeOrFail((int) $id);
+        $data = $request->validate([
+            'observacion' => 'required|string|min:5|max:1000',
+            'return_url' => 'nullable|string|max:2000',
+        ]);
         $entry = ProgramaCaso::findOrFail($id);
         $this->authorizeDecision($entry);
-        $this->updateEstado($entry, 'Probable');
-        return redirect()->to(backpack_url('programa-caso') . '?estado=No%20evaluado');
+        $this->updateEstado($entry, 'Probable', $data['observacion']);
+        return $this->redirectAfterDecision($request, backpack_url('programa-caso') . '?estado=No%20evaluado');
     }
 
-    public function reject($id)
+    public function reject(Request $request, $id)
     {
         $this->enforceEntryScopeOrFail((int) $id);
+        $data = $request->validate([
+            'observacion' => 'required|string|min:5|max:1000',
+            'return_url' => 'nullable|string|max:2000',
+        ]);
         $entry = ProgramaCaso::findOrFail($id);
         $this->authorizeDecision($entry);
-        $this->updateEstado($entry, 'No caso');
-        return redirect()->to(backpack_url('programa-caso') . '?estado=No%20evaluado');
+        $this->updateEstado($entry, 'No caso', $data['observacion']);
+        return $this->redirectAfterDecision($request, backpack_url('programa-caso') . '?estado=No%20evaluado');
     }
 
-    public function retirar($id)
+    public function retirar(Request $request, $id)
     {
         $this->enforceEntryScopeOrFail((int) $id);
+        $data = $request->validate([
+            'observacion' => 'required|string|min:5|max:1000',
+            'return_url' => 'nullable|string|max:2000',
+        ]);
         $entry = ProgramaCaso::findOrFail($id);
         $this->authorizeDecision($entry);
-        $this->updateEstado($entry, 'No caso');
-        return redirect()->back();
+        $this->updateEstado($entry, 'No caso', $data['observacion']);
+        return $this->redirectAfterDecision($request, backpack_url('programa-caso'));
     }
 
-    private function updateEstado(ProgramaCaso $entry, string $nuevoEstado): void
+    private function updateEstado(ProgramaCaso $entry, string $nuevoEstado, ?string $observacion = null): void
     {
         $estadoAnterior = $entry->estado;
         if ($estadoAnterior === $nuevoEstado) {
@@ -333,6 +358,7 @@ class ProgramaCasoCrudController extends CrudController
             'programa_caso_id' => $entry->id,
             'estado_anterior' => $estadoAnterior,
             'estado_nuevo' => $nuevoEstado,
+            'observacion' => $observacion ? trim($observacion) : null,
             'user_id' => backpack_user()?->id,
         ]);
     }
@@ -343,7 +369,7 @@ class ProgramaCasoCrudController extends CrudController
             abort(403);
         }
 
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isPlatformAdmin()) {
             return;
         }
 
@@ -366,12 +392,20 @@ class ProgramaCasoCrudController extends CrudController
             abort(403);
         }
 
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isAdminBypass()) {
+            return;
+        }
+
+        if (TenantSelection::isPlatformAdmin()) {
+            $empleadoIds = $this->scopedEmpleadoIds();
+            if (! $empleadoIds->contains($entry->empleado_id)) {
+                abort(403);
+            }
             return;
         }
 
         if (backpack_user()->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
-            $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+            $empresaIds = TenantSelection::empresaIds();
             $empleadoIds = Empleado::whereIn('cliente_id', $empresaIds ?: [0])->pluck('id');
             if (! $empleadoIds->contains($entry->empleado_id)) {
                 abort(403);
@@ -380,7 +414,7 @@ class ProgramaCasoCrudController extends CrudController
         }
 
         if (backpack_user()->hasAnyRole(['Coordinador de planta', 'Asesor externo planta'])) {
-            $plantaIds = backpack_user()->plantas()->pluck('sucursals.id')->all();
+            $plantaIds = \App\Support\TenantSelection::plantaIds();
             $empleadoIds = Empleado::whereIn('sucursal_id', $plantaIds ?: [0])->pluck('id');
             if (! $empleadoIds->contains($entry->empleado_id)) {
                 abort(403);
@@ -409,24 +443,70 @@ class ProgramaCasoCrudController extends CrudController
             }
         }
 
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isAdminBypass()) {
+            return;
+        }
+
+        if (TenantSelection::isPlatformAdmin()) {
+            $empleadoIds = $this->scopedEmpleadoIds();
+            $this->crud->addClause('whereIn', 'empleado_id', $empleadoIds->isEmpty() ? [0] : $empleadoIds);
             return;
         }
 
         if (backpack_user()->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
-            $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+            $empresaIds = TenantSelection::empresaIds();
             $empleadoIds = Empleado::whereIn('cliente_id', $empresaIds ?: [0])->pluck('id');
             $this->crud->addClause('whereIn', 'empleado_id', $empleadoIds);
             return;
         }
 
         if (backpack_user()->hasAnyRole(['Coordinador de planta', 'Asesor externo planta'])) {
-            $plantaIds = backpack_user()->plantas()->pluck('sucursals.id')->all();
+            $plantaIds = TenantSelection::plantaIds();
             $empleadoIds = Empleado::whereIn('sucursal_id', $plantaIds ?: [0])->pluck('id');
             $this->crud->addClause('whereIn', 'empleado_id', $empleadoIds);
             return;
         }
 
         $this->crud->addClause('whereRaw', '1 = 0');
+    }
+
+    private function scopedEmpleadoIds()
+    {
+        $plantaIds = TenantSelection::plantaIds();
+        if (! empty($plantaIds)) {
+            return Empleado::whereIn('sucursal_id', $plantaIds)->pluck('id');
+        }
+
+        $empresaIds = TenantSelection::empresaIds();
+        if (empty($empresaIds)) {
+            return collect();
+        }
+
+        if (TenantSelection::selectedEmpresaIncludesUnassigned()) {
+            return Empleado::where(function ($q) use ($empresaIds) {
+                $q->whereIn('cliente_id', $empresaIds)
+                    ->orWhereNull('cliente_id')
+                    ->orWhere('cliente_id', 0);
+            })->pluck('id');
+        }
+
+        return Empleado::whereIn('cliente_id', $empresaIds)->pluck('id');
+    }
+
+    private function redirectAfterDecision(Request $request, string $fallbackUrl)
+    {
+        $returnUrl = trim((string) $request->input('return_url', ''));
+        if ($returnUrl === '') {
+            $returnUrl = (string) url()->previous();
+        }
+
+        $isRelative = str_starts_with($returnUrl, '/');
+        $isLocalAbsolute = str_starts_with($returnUrl, rtrim(url('/'), '/'));
+
+        if ($isRelative || $isLocalAbsolute) {
+            return redirect()->to($returnUrl);
+        }
+
+        return redirect()->to($fallbackUrl);
     }
 }

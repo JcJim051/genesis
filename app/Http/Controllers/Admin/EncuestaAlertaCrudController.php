@@ -36,7 +36,8 @@ class EncuestaAlertaCrudController extends CrudController
             'name' => 'empleado',
             'type' => 'closure',
             'label' => 'Persona',
-            'function' => fn ($entry) => optional($entry->empleado)->nombre,
+            'escaped' => false,
+            'function' => fn ($entry) => \App\Support\EmpleadoLink::render($entry->empleado),
         ]);
         CRUD::addColumn([
             'name' => 'programa',
@@ -125,7 +126,7 @@ class EncuestaAlertaCrudController extends CrudController
             abort(403);
         }
 
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isPlatformAdmin()) {
             return;
         }
 
@@ -139,12 +140,12 @@ class EncuestaAlertaCrudController extends CrudController
 
     private function applyListScope(): void
     {
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isAdminBypass()) {
             return;
         }
 
         if (backpack_user()->hasAnyRole(['Coordinador de planta'])) {
-            $plantaIds = backpack_user()->plantas()->pluck('sucursals.id')->all();
+            $plantaIds = \App\Support\TenantSelection::plantaIds();
             $empleadoIds = Empleado::whereIn('sucursal_id', $plantaIds ?: [0])->pluck('id');
             $this->crud->addClause('whereIn', 'empleado_id', $empleadoIds);
             return;

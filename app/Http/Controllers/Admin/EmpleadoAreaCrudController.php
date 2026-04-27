@@ -37,8 +37,9 @@ class EmpleadoAreaCrudController extends CrudController
             'name' => 'empleado',
             'type' => 'closure',
             'label' => 'Persona',
+            'escaped' => false,
             'function' => function ($entry) {
-                return optional($entry->empleado)->nombre;
+                return \App\Support\EmpleadoLink::render($entry->empleado);
             },
         ]);
         CRUD::column('area');

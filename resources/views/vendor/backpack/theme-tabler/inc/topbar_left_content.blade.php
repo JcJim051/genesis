@@ -1,3 +1,21 @@
+@if(backpack_user() && backpack_user()->hasAnyRole(['Administrador','Coordinador general','Coordinador de planta','Asesor externo general','Asesor externo planta']))
+    @php
+        $scopeOptions = \App\Support\TenantSelection::scopeOptions();
+        $currentScope = session('tenant_scope', 'all');
+    @endphp
+    <li class="nav-item me-2 d-flex align-items-center">
+        <form method="POST" action="{{ backpack_url('scope/select') }}" class="d-flex align-items-center gap-2 scope-view-form">
+            @csrf
+            <span class="nav-link px-0 text-muted d-none d-xl-inline">Vista:</span>
+            <select name="scope" class="form-select form-select-sm scope-view-select" style="min-width: 320px;" onchange="this.form.submit()">
+                @foreach($scopeOptions as $option)
+                    <option value="{{ $option['value'] }}" @selected($currentScope === $option['value'])>{{ $option['label'] }}</option>
+                @endforeach
+            </select>
+        </form>
+    </li>
+@endif
+
 @if(backpack_user() && backpack_user()->hasRole('Administrador'))
     <x-backpack::menu-dropdown title="Autenticación" icon="la la-group">
         <x-backpack::menu-dropdown-item title="Usuarios" icon="la la-user" :link="backpack_url('user')" />
@@ -11,6 +29,10 @@
         <x-backpack::menu-dropdown-item title="Empresas" icon="la la-building" :link="backpack_url('cliente')" />
         <x-backpack::menu-dropdown-item title="Plantas" icon="la la-industry" :link="backpack_url('sucursal')" />
         <x-backpack::menu-dropdown-item title="Personas" icon="la la-user-check" :link="backpack_url('empleado')" />
+        @if(backpack_user()->hasAnyRole(['Administrador','Coordinador general']))
+            <x-backpack::menu-dropdown-item title="Plantillas IPT" icon="la la-magic" :link="backpack_url('ipt-template')" />
+            <x-backpack::menu-dropdown-item title="Festivos (CO)" icon="la la-calendar" :link="backpack_url('colombia-holiday')" />
+        @endif
         @if(backpack_user()->hasRole('Administrador'))
             <x-backpack::menu-dropdown-item title="Programas" icon="la la-list" :link="backpack_url('programa')" />
             <x-backpack::menu-dropdown-item title="CIE10" icon="la la-book" :link="backpack_url('cie10')" />

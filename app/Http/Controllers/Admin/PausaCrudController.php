@@ -124,8 +124,8 @@ class PausaCrudController extends CrudController
 
         $clientesQuery = Cliente::orderBy('nombre');
         $sucursalesQuery = Sucursal::orderBy('nombre');
-        if (! backpack_user()->hasRole('Administrador')) {
-            $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+        if (! \App\Support\TenantSelection::isAdminBypass()) {
+            $empresaIds = \App\Support\TenantSelection::empresaIds();
             $clientesQuery->whereIn('id', $empresaIds ?: [0]);
             $sucursalesQuery->whereIn('cliente_id', $empresaIds ?: [0]);
         }

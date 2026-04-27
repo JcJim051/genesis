@@ -1,15 +1,21 @@
-/* Make create/edit forms narrower and centered */
-body[class*="crud-"] .container-fluid {
+/* Make create/edit/show forms narrower and centered (NOT list pages) */
+body[class*="-create"] .container-fluid,
+body[class*="-edit"] .container-fluid,
+body[class*="-show"] .container-fluid {
   max-width: 980px;
 }
 
-body[class*="crud-"] .card {
+body[class*="-create"] .card,
+body[class*="-edit"] .card,
+body[class*="-show"] .card {
   margin-left: auto;
   margin-right: auto;
 }
 
 @media (min-width: 1200px) {
-  body[class*="crud-"] .container-fluid {
+  body[class*="-create"] .container-fluid,
+  body[class*="-edit"] .container-fluid,
+  body[class*="-show"] .container-fluid {
     max-width: 900px;
   }
 }
@@ -22,4 +28,100 @@ body[class*="crud-"] .card {
 
 .page-body .container-fluid.animated.fadeIn {
   margin-top: 0 !important;
+}
+
+/* Prevent occasional right-edge artifact caused by tiny horizontal overflow */
+:root {
+  --tblr-body-bg: #f8fafc;
+  --tblr-bg-surface: #ffffff;
+}
+
+html, body {
+  overflow-x: hidden;
+  background-color: #f8fafc !important;
+  scrollbar-color: #cbd5e1 #f8fafc; /* Firefox */
+}
+
+body[bp-layout] .page,
+body[bp-layout] .page-wrapper,
+body[bp-layout] .page-body,
+body[bp-layout] main.container-fluid,
+body[bp-layout] .container-fluid.animated.fadeIn {
+  max-width: 100%;
+  background-color: #f8fafc !important;
+}
+
+/* Ensure list pages always use full width and same background tone */
+body[class*="-list"] .container-fluid,
+body[class*="-list"] .container-xxl,
+body[class*="-list"] .page-wrapper,
+body[class*="-list"] .page-body {
+  max-width: 100% !important;
+  background-color: #f8fafc !important;
+}
+
+/* Neutral scrollbar colors (avoid blue gutter/accent on the right edge) */
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 999px;
+  border: 3px solid #f8fafc;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+/* Safari/macOS specific fallback for right scrollbar gutter tint */
+@supports (-webkit-touch-callout: none) {
+  html,
+  body,
+  body[bp-layout] .page,
+  body[bp-layout] .page-wrapper,
+  body[bp-layout] .page-body,
+  body[bp-layout] main.container-fluid,
+  body[bp-layout] .container-fluid.animated.fadeIn {
+    background: #f8fafc !important;
+  }
+}
+
+/* Scope selector in topbar */
+.scope-view-form .scope-view-select {
+  background: linear-gradient(135deg, #f4f9ff 0%, #f3fbf7 55%, #f7fbff 100%) !important;
+  border: 1px solid #d7e4ec !important;
+  color: #334155 !important;
+  box-shadow: none !important;
+}
+
+.scope-view-form .scope-view-select:hover {
+  border-color: #b8d2c7 !important;
+}
+
+.scope-view-form .scope-view-select:focus {
+  border-color: #62d3a7 !important;
+  box-shadow: 0 0 0 0.2rem rgba(98, 211, 167, 0.22) !important;
+}
+
+.scope-view-form .scope-view-select option {
+  background: #ffffff;
+  color: #334155;
+}
+
+[data-bs-theme="dark"] .scope-view-form .scope-view-select {
+  background: #1f2937 !important;
+  border-color: #334155 !important;
+  color: #e5e7eb !important;
+}
+
+[data-bs-theme="dark"] .scope-view-form .scope-view-select option {
+  background: #111827;
+  color: #e5e7eb;
 }

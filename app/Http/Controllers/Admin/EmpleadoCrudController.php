@@ -581,7 +581,7 @@ class EmpleadoCrudController extends CrudController
             abort(403);
         }
 
-        if ($this->isAdmin()) {
+        if ($this->isPlatformAdmin()) {
             return;
         }
 
@@ -600,6 +600,24 @@ class EmpleadoCrudController extends CrudController
     private function applyListScope(): void
     {
         if ($this->isAdmin()) {
+            return;
+        }
+
+        if ($this->isPlatformAdmin()) {
+            $empresaIds = $this->empresaIdsForUser();
+            $plantaIds = $this->plantaIdsForUser();
+
+            if (! empty($plantaIds)) {
+                $this->crud->addClause('whereIn', 'sucursal_id', $plantaIds);
+                return;
+            }
+
+            if (! empty($empresaIds)) {
+                $this->crud->addClause('whereIn', 'cliente_id', $empresaIds);
+                return;
+            }
+
+            $this->crud->addClause('whereRaw', '1 = 0');
             return;
         }
 
@@ -627,7 +645,18 @@ class EmpleadoCrudController extends CrudController
 
         $query = Empleado::query()->whereKey($entryId);
 
-        if ($this->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
+        if ($this->isPlatformAdmin()) {
+            $empresaIds = $this->empresaIdsForUser();
+            $plantaIds = $this->plantaIdsForUser();
+
+            if (! empty($plantaIds)) {
+                $query->whereIn('sucursal_id', $plantaIds);
+            } elseif (! empty($empresaIds)) {
+                $query->whereIn('cliente_id', $empresaIds);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        } elseif ($this->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
             $empresaIds = $this->empresaIdsForUser();
             $query->whereIn('cliente_id', $empresaIds ?: [0]);
         } elseif ($this->hasAnyRole(['Coordinador de planta', 'Asesor externo planta'])) {
@@ -642,7 +671,7 @@ class EmpleadoCrudController extends CrudController
 
     private function isAdmin(): bool
     {
-        return backpack_user()->hasRole('Administrador');
+        return \App\Support\TenantSelection::isAdminBypass();
     }
 
     private function hasAnyRole(array $roles): bool
@@ -650,20 +679,29 @@ class EmpleadoCrudController extends CrudController
         return backpack_user()->hasAnyRole($roles);
     }
 
+    private function isPlatformAdmin(): bool
+    {
+        return backpack_user()?->hasRole('Administrador') ?? false;
+    }
+
     private function empresaIdsForUser(): array
     {
-        return backpack_user()->empresas()->pluck('clientes.id')->all();
+        return \App\Support\TenantSelection::empresaIds();
     }
 
     private function plantaIdsForUser(): array
     {
-        return backpack_user()->plantas()->pluck('sucursals.id')->all();
+        return \App\Support\TenantSelection::plantaIds();
     }
 
     private function allowedEmpresaIdsForCreate(): array
     {
         if ($this->isAdmin()) {
             return \App\Models\Cliente::pluck('id')->all();
+        }
+
+        if ($this->isPlatformAdmin()) {
+            return $this->empresaIdsForUser();
         }
 
         if ($this->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
@@ -681,6 +719,16 @@ class EmpleadoCrudController extends CrudController
     {
         if ($this->isAdmin()) {
             return \App\Models\Sucursal::pluck('id')->all();
+        }
+
+        if ($this->isPlatformAdmin()) {
+            $plantaIds = $this->plantaIdsForUser();
+            if (! empty($plantaIds)) {
+                return $plantaIds;
+            }
+
+            $empresaIds = $this->empresaIdsForUser();
+            return \App\Models\Sucursal::whereIn('cliente_id', $empresaIds ?: [0])->pluck('id')->all();
         }
 
         if ($this->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
@@ -703,6 +751,28 @@ class EmpleadoCrudController extends CrudController
 
         $empresaId = (int) request()->input('cliente_id');
         $plantaId = (int) request()->input('sucursal_id');
+
+        if ($this->isPlatformAdmin()) {
+            $allowedEmpresas = $this->empresaIdsForUser();
+            $allowedPlantas = $this->plantaIdsForUser();
+
+            if (! empty($allowedPlantas)) {
+                if (! in_array($plantaId, $allowedPlantas, true)) {
+                    abort(403);
+                }
+                return;
+            }
+
+            if (! in_array($empresaId, $allowedEmpresas, true)) {
+                abort(403);
+            }
+
+            if (! \App\Models\Sucursal::where('id', $plantaId)->where('cliente_id', $empresaId)->exists()) {
+                abort(403);
+            }
+
+            return;
+        }
 
         if ($this->hasAnyRole(['Coordinador general', 'Asesor externo general'])) {
             $allowedEmpresas = $this->empresaIdsForUser();

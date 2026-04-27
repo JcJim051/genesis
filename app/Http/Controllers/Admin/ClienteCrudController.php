@@ -154,7 +154,7 @@ class ClienteCrudController extends CrudController
 
     private function isAdmin(): bool
     {
-        return backpack_user()->hasRole('Administrador');
+        return \App\Support\TenantSelection::isPlatformAdmin();
     }
 
     private function hasAnyRole(array $roles): bool
@@ -164,7 +164,7 @@ class ClienteCrudController extends CrudController
 
     private function empresaIdsForUser(): array
     {
-        return backpack_user()->empresas()->pluck('clientes.id')->all();
+        return \App\Support\TenantSelection::empresaIds();
     }
 
     private function empresaIdsFromPlantas(): array

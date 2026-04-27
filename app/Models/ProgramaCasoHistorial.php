@@ -15,6 +15,7 @@ class ProgramaCasoHistorial extends Model
         'programa_caso_id',
         'estado_anterior',
         'estado_nuevo',
+        'observacion',
         'user_id',
     ];
 

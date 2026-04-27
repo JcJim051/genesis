@@ -27,4 +27,9 @@ class Cliente extends Model
     {
         return $this->belongsToMany(User::class, 'cliente_user');
     }
+
+    public function iptTemplates()
+    {
+        return $this->hasMany(IptTemplate::class, 'cliente_id');
+    }
 }

@@ -104,11 +104,11 @@ class EncuestaEnvioCrudController extends CrudController
             ->model(Cliente::class)
             ->attribute('nombre')
             ->options(function ($query) {
-                if (backpack_user()->hasRole('Administrador')) {
+                if (\App\Support\TenantSelection::isAdminBypass()) {
                     return $query->orderBy('nombre')->get();
                 }
 
-                $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+                $empresaIds = \App\Support\TenantSelection::empresaIds();
                 return $query->whereIn('id', $empresaIds ?: [0])->orderBy('nombre')->get();
             });
 
@@ -119,11 +119,11 @@ class EncuestaEnvioCrudController extends CrudController
             ->model(Sucursal::class)
             ->attribute('nombre')
             ->options(function ($query) {
-                if (backpack_user()->hasRole('Administrador')) {
+                if (\App\Support\TenantSelection::isAdminBypass()) {
                     return $query->orderBy('nombre')->get();
                 }
 
-                $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+                $empresaIds = \App\Support\TenantSelection::empresaIds();
                 return $query->whereIn('cliente_id', $empresaIds ?: [0])->orderBy('nombre')->get();
             });
 
@@ -356,7 +356,7 @@ class EncuestaEnvioCrudController extends CrudController
             abort(403);
         }
 
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isPlatformAdmin()) {
             return;
         }
 
@@ -369,12 +369,12 @@ class EncuestaEnvioCrudController extends CrudController
 
     private function applyListScope(): void
     {
-        if (backpack_user()->hasRole('Administrador')) {
+        if (\App\Support\TenantSelection::isAdminBypass()) {
             return;
         }
 
         if (backpack_user()->hasAnyRole(['Coordinador general'])) {
-            $empresaIds = backpack_user()->empresas()->pluck('clientes.id')->all();
+            $empresaIds = \App\Support\TenantSelection::empresaIds();
             $this->crud->addClause('whereIn', 'cliente_id', $empresaIds ?: [0]);
             return;
         }

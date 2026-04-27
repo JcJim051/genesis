@@ -22,9 +22,14 @@
             :link="backpack_url('programa-caso') . '?estado=No%20evaluado'"
         />
         <x-backpack::menu-dropdown-item
-            title="Osteomuscular"
+            title="Osteomuscular · Casos"
             icon="la la-dumbbell"
             :link="backpack_url('programa-caso') . '?programa_id=' . optional($programas->get('osteomuscular'))->id"
+        />
+        <x-backpack::menu-dropdown-item
+            title="Osteomuscular · Inspección IPT"
+            icon="la la-clipboard-list"
+            :link="backpack_url('ipt-inspection')"
         />
         <x-backpack::menu-dropdown-item
             title="Visual"

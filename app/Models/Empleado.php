@@ -90,6 +90,11 @@ class Empleado extends Model
         return $this->hasOne(TelegramActivationLink::class, 'empleado_id');
     }
 
+    public function iptInspections()
+    {
+        return $this->hasMany(IptInspection::class, 'empleado_id')->orderByDesc('fecha_inspeccion');
+    }
+
     public function getTelegramActivationUrl(): string
     {
         $link = $this->telegramActivationLink;
