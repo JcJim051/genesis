@@ -21,6 +21,8 @@ class IptInspection extends Model
         'puntaje_total',
         'nivel_riesgo',
         'fecha_proximo_seguimiento_sugerida',
+        'foto_antes',
+        'foto_despues',
         'hallazgos',
         'recomendaciones',
         'accion',

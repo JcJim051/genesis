@@ -27,11 +27,6 @@
             :link="backpack_url('programa-caso') . '?programa_id=' . optional($programas->get('osteomuscular'))->id"
         />
         <x-backpack::menu-dropdown-item
-            title="Osteomuscular · Inspección IPT"
-            icon="la la-clipboard-list"
-            :link="backpack_url('ipt-inspection')"
-        />
-        <x-backpack::menu-dropdown-item
             title="Visual"
             icon="la la-eye"
             :link="backpack_url('programa-caso') . '?programa_id=' . optional($programas->get('visual'))->id"
@@ -57,6 +52,10 @@
             :link="backpack_url('reincorporacion')"
         />
     </x-backpack::menu-dropdown>
+@endif
+
+@if(backpack_user() && backpack_user()->hasAnyRole(['Administrador','Coordinador general','Coordinador de planta','Asesor externo general','Asesor externo planta']))
+    <x-backpack::menu-item title="Inspección IPT" icon="la la-clipboard-list" :link="backpack_url('ipt-inspection')" />
 @endif
 
 @if(backpack_user() && backpack_user()->hasAnyRole(['Administrador','Coordinador general']))

@@ -7,6 +7,8 @@ use App\Models\IptInspection;
 use App\Models\IptInspectionAnswer;
 use App\Models\IptInspectionRequirement;
 use App\Models\IptTemplate;
+use App\Models\Empleado;
+use App\Models\Programa;
 use App\Models\ProgramaCaso;
 use App\Services\Ipt\BusinessDayService;
 use App\Services\Ipt\IptScoringService;
@@ -17,6 +19,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class IptInspectionCrudController extends CrudController
 {
@@ -161,6 +164,7 @@ class IptInspectionCrudController extends CrudController
 
         $this->crud->addButtonFromView('line', 'ipt_inspection_edit', 'ipt_inspection_edit', 'beginning');
         $this->crud->addButtonFromView('line', 'ipt_inspection_followup', 'ipt_inspection_followup', 'end');
+        $this->crud->addButtonFromView('top', 'ipt_inspection_create_manual', 'ipt_inspection_create_manual', 'beginning');
     }
 
     private function baseScopedQueryForList(): Builder
@@ -184,18 +188,105 @@ class IptInspectionCrudController extends CrudController
         return $this->traitShow($id);
     }
 
-    public function createInitialForCase(int $programaCasoId)
+    public function createInitialForCase(Request $request, int $programaCasoId)
     {
         $programaCaso = $this->loadCaseOrFail($programaCasoId);
-        $templates = $this->resolveTemplatesForCase($programaCaso);
-        $template = $templates->first();
+        $templates = $this->templatesForCase($programaCaso);
+        if ($templates->isEmpty()) {
+            $empresaId = (int) ($programaCaso->empleado->cliente_id ?? 0);
+            $empresaNombre = $programaCaso->empleado->cliente?->nombre ?? 'la empresa de la persona seleccionada';
+            \Alert::error("No hay plantillas IPT activas para {$empresaNombre}. Selecciona una plantilla de esa empresa o crea una nueva.")->flash();
+            return redirect(backpack_url('ipt-template') . '?cliente_id=' . $empresaId);
+        }
+        $selectedTemplateId = (int) $request->query('template_id', 0);
+        $template = $selectedTemplateId > 0
+            ? ($templates->firstWhere('id', $selectedTemplateId) ?: $templates->first())
+            : $templates->first();
 
         return $this->renderForm('initial', null, $programaCaso, $template, null, [], $templates);
+    }
+
+    public function createManual()
+    {
+        $empleados = $this->scopedEmployeesQuery()
+            ->with(['cliente', 'sucursal'])
+            ->orderBy('nombre')
+            ->limit(500)
+            ->get();
+
+        $templatePoolQuery = IptTemplate::query()
+            ->where('activo', true);
+
+        if (! ($this->isAdmin() && \App\Support\TenantSelection::isAdminBypass())) {
+            $this->applyScopeByFields($templatePoolQuery, 'cliente_id', null);
+        }
+
+        $templatePool = $templatePoolQuery
+            ->orderBy('nombre_publico')
+            ->get(['id', 'cliente_id', 'nombre_publico', 'codigo', 'segmento']);
+
+        return view('admin.ipt_inspections.create_manual', [
+            'empleados' => $empleados,
+            'templatePool' => $templatePool,
+        ]);
+    }
+
+    public function storeManual(Request $request)
+    {
+        $data = $request->validate([
+            'empleado_id' => 'required|integer',
+            'template_id' => 'required|integer|exists:ipt_templates,id',
+        ]);
+
+        $empleado = $this->scopedEmployeesQuery()->findOrFail((int) $data['empleado_id']);
+
+        $programa = Programa::query()
+            ->where('slug', 'osteomuscular')
+            ->first();
+
+        if (! $programa) {
+            return redirect(backpack_url('ipt-inspection'))
+                ->with('error', 'No se encontró el programa Osteomuscular.');
+        }
+
+        $caso = ProgramaCaso::firstOrCreate(
+            [
+                'empleado_id' => $empleado->id,
+                'programa_id' => $programa->id,
+            ],
+            [
+                'estado' => 'No evaluado',
+                'origen' => 'IPT manual',
+                'sugerido_por' => backpack_user()?->name ?? 'Sistema',
+                'fecha_inicio' => now()->toDateString(),
+            ]
+        );
+
+        $redirect = backpack_url('programa-caso/' . $caso->id . '/ipt/create-initial');
+        $template = IptTemplate::query()
+            ->whereKey((int) $data['template_id'])
+            ->where('activo', true)
+            ->first();
+
+        if (! $template || (int) $template->cliente_id !== (int) $empleado->cliente_id) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['template_id' => 'La plantilla seleccionada no corresponde a la empresa de la persona.']);
+        }
+        $redirect .= '?template_id=' . (int) $template->id;
+
+        return redirect($redirect);
     }
 
     public function storeInitialForCase(Request $request, int $programaCasoId)
     {
         $programaCaso = $this->loadCaseOrFail($programaCasoId);
+        if ($this->templatesForCase($programaCaso)->isEmpty()) {
+            $empresaId = (int) ($programaCaso->empleado->cliente_id ?? 0);
+            $empresaNombre = $programaCaso->empleado->cliente?->nombre ?? 'la empresa de la persona seleccionada';
+            \Alert::error("No hay plantillas IPT activas para {$empresaNombre}. Selecciona una plantilla de esa empresa o crea una nueva.")->flash();
+            return redirect(backpack_url('ipt-template') . '?cliente_id=' . $empresaId);
+        }
         $template = $this->resolveTemplateForCase($programaCaso, (int) $request->input('template_id'));
 
         return $this->persistInspection($request, 'initial', $programaCaso, null, null, $template);
@@ -294,9 +385,14 @@ class IptInspectionCrudController extends CrudController
     ) {
         $template = $editing?->template ?: $this->resolveTemplateForCase($programaCaso);
 
+        $fotoAntesRequired = ($editing?->foto_antes ? 'nullable' : 'required') . '|image|max:5120';
+        $fotoDespuesRequired = ($editing?->foto_despues ? 'nullable' : 'required') . '|image|max:5120';
+
         $validation = $request->validate([
             'fecha_inspeccion' => 'required|date',
             'template_id' => 'nullable|integer|exists:ipt_templates,id',
+            'foto_antes' => $fotoAntesRequired,
+            'foto_despues' => $fotoDespuesRequired,
             'hallazgos' => 'nullable|string',
             'recomendaciones' => 'nullable|string',
             'accion' => 'nullable|string',
@@ -332,6 +428,23 @@ class IptInspectionCrudController extends CrudController
         DB::transaction(function () use ($editing, $programaCaso, $template, $tipo, $initial, $validation, $scoring, $risk, $followupDate, $fechaInspeccion) {
             $inspection = $editing ?: new IptInspection();
 
+            $fotoAntesPath = $inspection->foto_antes;
+            $fotoDespuesPath = $inspection->foto_despues;
+
+            if (request()->hasFile('foto_antes')) {
+                if ($fotoAntesPath) {
+                    Storage::disk('public')->delete($fotoAntesPath);
+                }
+                $fotoAntesPath = request()->file('foto_antes')->store('ipt-evidencias', 'public');
+            }
+
+            if (request()->hasFile('foto_despues')) {
+                if ($fotoDespuesPath) {
+                    Storage::disk('public')->delete($fotoDespuesPath);
+                }
+                $fotoDespuesPath = request()->file('foto_despues')->store('ipt-evidencias', 'public');
+            }
+
             $inspection->fill([
                 'programa_caso_id' => $programaCaso->id,
                 'empleado_id' => $programaCaso->empleado_id,
@@ -344,6 +457,8 @@ class IptInspectionCrudController extends CrudController
                 'puntaje_total' => (int) $scoring['total'],
                 'nivel_riesgo' => $risk['nivel'] ?? null,
                 'fecha_proximo_seguimiento_sugerida' => $followupDate,
+                'foto_antes' => $fotoAntesPath,
+                'foto_despues' => $fotoDespuesPath,
                 'hallazgos' => $validation['hallazgos'] ?? null,
                 'recomendaciones' => $validation['recomendaciones'] ?? null,
                 'accion' => $validation['accion'] ?? null,
@@ -393,24 +508,21 @@ class IptInspectionCrudController extends CrudController
         return $programaCaso;
     }
 
-    private function resolveTemplatesForCase(ProgramaCaso $programaCaso): Collection
+    private function templatesForCase(ProgramaCaso $programaCaso): Collection
     {
-        $templates = IptTemplate::query()
+        return IptTemplate::query()
             ->where('cliente_id', $programaCaso->empleado->cliente_id)
             ->where('activo', true)
             ->orderByDesc('id')
             ->get();
-
-        if ($templates->isEmpty()) {
-            abort(422, 'La empresa no tiene plantilla IPT activa. Configura una plantilla primero.');
-        }
-
-        return $templates;
     }
 
     private function resolveTemplateForCase(ProgramaCaso $programaCaso, ?int $templateId = null): IptTemplate
     {
-        $templates = $this->resolveTemplatesForCase($programaCaso);
+        $templates = $this->templatesForCase($programaCaso);
+        if ($templates->isEmpty()) {
+            abort(422, 'La empresa no tiene plantilla IPT activa. Configura una plantilla primero.');
+        }
 
         if ($templateId) {
             $selected = $templates->firstWhere('id', $templateId);
@@ -441,6 +553,17 @@ class IptInspectionCrudController extends CrudController
         }
 
         return $initial;
+    }
+
+    private function scopedEmployeesQuery(): Builder
+    {
+        $query = Empleado::query();
+
+        if (! ($this->isAdmin() && \App\Support\TenantSelection::isAdminBypass())) {
+            $this->applyScopeByFields($query, 'cliente_id', 'sucursal_id');
+        }
+
+        return $query;
     }
 
     private function enforceCaseScopeOrFail(ProgramaCaso $programaCaso): void

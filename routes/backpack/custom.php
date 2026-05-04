@@ -81,6 +81,10 @@ Route::group([
     Route::get('ipt-template/{id}/builder', [IptTemplateCrudController::class, 'builder'])->whereNumber('id');
     Route::post('ipt-template/{id}/builder', [IptTemplateCrudController::class, 'builderSave'])->whereNumber('id');
     Route::crud('ipt-inspection', IptInspectionCrudController::class);
+    Route::get('ipt-inspection/create-manual', [IptInspectionCrudController::class, 'createManual'])
+        ->name('ipt-inspection.create-manual');
+    Route::post('ipt-inspection/create-manual', [IptInspectionCrudController::class, 'storeManual'])
+        ->name('ipt-inspection.store-manual');
     Route::get('programa-caso/{id}/ipt/create-initial', [IptInspectionCrudController::class, 'createInitialForCase'])->whereNumber('id');
     Route::post('programa-caso/{id}/ipt/create-initial', [IptInspectionCrudController::class, 'storeInitialForCase'])->whereNumber('id');
     Route::get('ipt/{id}/create-followup', [IptInspectionCrudController::class, 'createFollowup'])->whereNumber('id');

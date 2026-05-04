@@ -27,7 +27,7 @@
                 $action = $inspection?->exists ? backpack_url('ipt/' . $inspection->id . '/edit') : $baseAction;
             @endphp
 
-            <form method="POST" action="{{ $action }}">
+            <form method="POST" action="{{ $action }}" enctype="multipart/form-data">
                 @csrf
 
                 <div class="row g-3 mb-3">
@@ -53,7 +53,7 @@
                             <input class="form-control" value="{{ $template->nombre_publico }}{{ $template->segmento ? (' · ' . $template->segmento) : '' }}" readonly>
                             <input type="hidden" name="template_id" value="{{ $template->id }}">
                         @else
-                            <select class="form-control" name="template_id" required>
+                            <select class="form-control" name="template_id" id="template_id_selector" required>
                                 @foreach(($templates ?? collect())->sortByDesc('id') as $tpl)
                                     <option value="{{ $tpl->id }}" @selected((int) old('template_id', $template->id) === (int) $tpl->id)>
                                         {{ $tpl->nombre_publico }}{{ $tpl->segmento ? (' · ' . $tpl->segmento) : '' }}{{ $tpl->codigo ? (' [' . $tpl->codigo . ']') : '' }}
@@ -117,6 +117,34 @@
                     </div>
                 </div>
 
+                <div class="card border p-3 mb-3">
+                    <h6>Evidencia fotográfica</h6>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Foto antes</label>
+                            <input type="file" class="form-control" name="foto_antes" accept="image/*" {{ empty($inspection?->foto_antes) ? 'required' : '' }}>
+                            @if(!empty($inspection?->foto_antes))
+                                <div class="mt-2">
+                                    <a href="{{ asset('storage/' . $inspection->foto_antes) }}" target="_blank">
+                                        <img src="{{ asset('storage/' . $inspection->foto_antes) }}" alt="Foto antes" style="max-height:120px; border-radius:8px;">
+                                    </a>
+                                </div>
+                            @endif
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Foto después</label>
+                            <input type="file" class="form-control" name="foto_despues" accept="image/*" {{ empty($inspection?->foto_despues) ? 'required' : '' }}>
+                            @if(!empty($inspection?->foto_despues))
+                                <div class="mt-2">
+                                    <a href="{{ asset('storage/' . $inspection->foto_despues) }}" target="_blank">
+                                        <img src="{{ asset('storage/' . $inspection->foto_despues) }}" alt="Foto después" style="max-height:120px; border-radius:8px;">
+                                    </a>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Hallazgos / observaciones</label>
@@ -163,3 +191,22 @@
     </div>
 </div>
 @endsection
+
+@if(!($inspection?->exists) && $tipo === 'initial')
+    @push('after_scripts')
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const select = document.getElementById('template_id_selector');
+                if (!select) return;
+
+                select.addEventListener('change', function () {
+                    const selected = this.value;
+                    if (!selected) return;
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('template_id', selected);
+                    window.location.href = url.toString();
+                });
+            });
+        </script>
+    @endpush
+@endif

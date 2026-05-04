@@ -41,6 +41,12 @@ class IptTemplateCrudController extends CrudController
 
     protected function setupListOperation(): void
     {
+        $clienteId = (int) request()->query('cliente_id', 0);
+        if ($clienteId > 0) {
+            $this->validateClientePermitido($clienteId);
+            $this->crud->addClause('where', 'cliente_id', $clienteId);
+        }
+
         $this->crud->addButtonFromView('top', 'ipt_template_builder_create', 'ipt_template_builder_create', 'beginning');
         $this->crud->addButtonFromView('top', 'ipt_template_seed_vdt', 'ipt_template_seed_vdt', 'beginning');
         $this->crud->addButtonFromView('line', 'ipt_template_builder', 'ipt_template_builder', 'beginning');
@@ -284,7 +290,16 @@ class IptTemplateCrudController extends CrudController
             return;
         }
 
-        $allowed = backpack_user()->empresas()->where('clientes.id', $clienteId)->exists();
+        // Priorizamos el alcance efectivo actual (selector de vista/tenant).
+        $scopeEmpresaIds = collect(\App\Support\TenantSelection::empresaIds())
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->values()
+            ->all();
+
+        $allowed = in_array($clienteId, $scopeEmpresaIds, true)
+            || backpack_user()->empresas()->where('clientes.id', $clienteId)->exists();
+
         if (! $allowed) {
             abort(403, 'No autorizado para usar esa empresa.');
         }
