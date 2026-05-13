@@ -12,6 +12,7 @@ use App\Models\Programa;
 use App\Models\ProgramaCaso;
 use App\Services\Ipt\BusinessDayService;
 use App\Services\Ipt\IptScoringService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use Carbon\Carbon;
@@ -45,6 +46,14 @@ class IptInspectionCrudController extends CrudController
     protected function setupListOperation(): void
     {
         $this->crud->setListView('admin.ipt_inspections.list');
+        // Mantener siempre visibles los botones de acción (sin colapsar a dropdown).
+        $this->crud->setOperationSetting('lineButtonsAsDropdown', false);
+        $this->crud->setOperationSetting('lineButtonsAsDropdownMinimum', 999);
+        // Evitar que DataTables esconda columnas (incluyendo Actions) en modo responsive.
+        $this->crud->setOperationSetting('responsiveTable', false);
+        // Evitar que persistencia/column picker restablezca columnas ocultas.
+        $this->crud->setOperationSetting('persistentTable', false);
+        $this->crud->setOperationSetting('showTableColumnPicker', false);
 
         $today = Carbon::today();
         $plus7 = $today->copy()->addDays(7);
@@ -125,6 +134,7 @@ class IptInspectionCrudController extends CrudController
             'label' => 'Plantilla',
             'type' => 'closure',
             'function' => fn ($entry) => $entry->template?->nombre_publico ?? '-',
+            'visibleInTable' => false,
         ]);
 
         CRUD::addColumn([
@@ -132,6 +142,7 @@ class IptInspectionCrudController extends CrudController
             'label' => 'Tipo',
             'type' => 'closure',
             'function' => fn ($entry) => $entry->tipo === 'followup' ? 'Seguimiento' : 'Inicial',
+            'visibleInTable' => false,
         ]);
 
         CRUD::addColumn([
@@ -152,17 +163,19 @@ class IptInspectionCrudController extends CrudController
             'label' => 'Fecha seguimiento',
             'type' => 'closure',
             'function' => fn ($entry) => $entry->fecha_proximo_seguimiento_sugerida?->format('Y-m-d') ?? '—',
-            'priority' => 1,
-            'visibleInTable' => true,
+            'priority' => 2,
+            'visibleInTable' => false,
         ]);
 
         CRUD::addColumn([
             'name' => 'estado',
             'label' => 'Estado',
             'type' => 'text',
+            'visibleInTable' => false,
         ]);
 
         $this->crud->addButtonFromView('line', 'ipt_inspection_edit', 'ipt_inspection_edit', 'beginning');
+        $this->crud->addButtonFromView('line', 'ipt_inspection_pdf', 'ipt_inspection_pdf', 'end');
         $this->crud->addButtonFromView('line', 'ipt_inspection_followup', 'ipt_inspection_followup', 'end');
         $this->crud->addButtonFromView('top', 'ipt_inspection_create_manual', 'ipt_inspection_create_manual', 'beginning');
     }
@@ -179,6 +192,7 @@ class IptInspectionCrudController extends CrudController
     {
         $this->crud->setShowView('admin.ipt_inspections.show');
         $this->crud->addButtonFromView('top', 'ipt_inspection_edit', 'ipt_inspection_edit', 'beginning');
+        $this->crud->addButtonFromView('top', 'ipt_inspection_pdf', 'ipt_inspection_pdf', 'end');
         $this->crud->addButtonFromView('top', 'ipt_inspection_followup', 'ipt_inspection_followup', 'end');
     }
 
@@ -186,6 +200,28 @@ class IptInspectionCrudController extends CrudController
     {
         $this->enforceEntryScopeOrFail((int) $id);
         return $this->traitShow($id);
+    }
+
+    public function pdf(int $id)
+    {
+        $this->enforceEntryScopeOrFail($id);
+
+        $inspection = IptInspection::with([
+            'programaCaso.programa',
+            'programaCaso.empleado.cliente',
+            'programaCaso.empleado.sucursal',
+            'template.sections.questions',
+            'answers',
+            'requirements.requirement',
+            'followups',
+            'creator',
+        ])->findOrFail($id);
+
+        $pdf = Pdf::loadView('admin.ipt_inspections.pdf', [
+            'inspection' => $inspection,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->download('ipt_' . $inspection->id . '.pdf');
     }
 
     public function createInitialForCase(Request $request, int $programaCasoId)
@@ -385,18 +421,26 @@ class IptInspectionCrudController extends CrudController
     ) {
         $template = $editing?->template ?: $this->resolveTemplateForCase($programaCaso);
 
-        $fotoAntesRequired = ($editing?->foto_antes ? 'nullable' : 'required') . '|image|max:5120';
-        $fotoDespuesRequired = ($editing?->foto_despues ? 'nullable' : 'required') . '|image|max:5120';
+        $fotoAntesRule = 'nullable|image|max:5120';
+        $fotoDespuesRule = 'nullable|image|max:5120';
+        $fotoGeneralRule = 'nullable|image|max:5120';
+        if (($template->evidencia_fotografica_modo ?? 'none') === 'before_after') {
+            $fotoAntesRule = (($editing?->foto_antes ? 'nullable' : 'required') . '|image|max:5120');
+            $fotoDespuesRule = (($editing?->foto_despues ? 'nullable' : 'required') . '|image|max:5120');
+        } elseif (($template->evidencia_fotografica_modo ?? 'none') === 'general') {
+            $fotoGeneralRule = (($editing?->foto_general ? 'nullable' : 'required') . '|image|max:5120');
+        }
 
         $validation = $request->validate([
             'fecha_inspeccion' => 'required|date',
             'template_id' => 'nullable|integer|exists:ipt_templates,id',
-            'foto_antes' => $fotoAntesRequired,
-            'foto_despues' => $fotoDespuesRequired,
+            'foto_antes' => $fotoAntesRule,
+            'foto_despues' => $fotoDespuesRule,
+            'foto_general' => $fotoGeneralRule,
             'hallazgos' => 'nullable|string',
             'recomendaciones' => 'nullable|string',
-            'accion' => 'nullable|string',
-            'responsable' => 'nullable|string|max:255',
+            'accion' => ($template->mostrar_accion ? 'nullable' : 'prohibited') . '|string',
+            'responsable' => ($template->mostrar_responsable ? 'nullable' : 'prohibited') . '|string|max:255',
             'estado' => 'nullable|in:abierto,cerrado',
             'seguimiento_exitoso' => 'nullable|in:0,1',
             'answers' => 'required|array',
@@ -430,6 +474,7 @@ class IptInspectionCrudController extends CrudController
 
             $fotoAntesPath = $inspection->foto_antes;
             $fotoDespuesPath = $inspection->foto_despues;
+            $fotoGeneralPath = $inspection->foto_general;
 
             if (request()->hasFile('foto_antes')) {
                 if ($fotoAntesPath) {
@@ -443,6 +488,13 @@ class IptInspectionCrudController extends CrudController
                     Storage::disk('public')->delete($fotoDespuesPath);
                 }
                 $fotoDespuesPath = request()->file('foto_despues')->store('ipt-evidencias', 'public');
+            }
+
+            if (request()->hasFile('foto_general')) {
+                if ($fotoGeneralPath) {
+                    Storage::disk('public')->delete($fotoGeneralPath);
+                }
+                $fotoGeneralPath = request()->file('foto_general')->store('ipt-evidencias', 'public');
             }
 
             $inspection->fill([
@@ -459,10 +511,11 @@ class IptInspectionCrudController extends CrudController
                 'fecha_proximo_seguimiento_sugerida' => $followupDate,
                 'foto_antes' => $fotoAntesPath,
                 'foto_despues' => $fotoDespuesPath,
+                'foto_general' => $fotoGeneralPath,
                 'hallazgos' => $validation['hallazgos'] ?? null,
                 'recomendaciones' => $validation['recomendaciones'] ?? null,
-                'accion' => $validation['accion'] ?? null,
-                'responsable' => $validation['responsable'] ?? null,
+                'accion' => $template->mostrar_accion ? ($validation['accion'] ?? null) : null,
+                'responsable' => $template->mostrar_responsable ? ($validation['responsable'] ?? null) : null,
                 'estado' => $validation['estado'] ?? 'abierto',
                 'seguimiento_exitoso' => array_key_exists('seguimiento_exitoso', $validation)
                     ? (int) $validation['seguimiento_exitoso'] === 1

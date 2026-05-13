@@ -50,6 +50,7 @@ Route::group([
     Route::crud('sucursal', SucursalCrudController::class);
     Route::crud('empleado', EmpleadoCrudController::class);
     Route::get('empleado/lookup', [EmpleadoCrudController::class, 'lookup']);
+    Route::get('empleado/plantas', [EmpleadoCrudController::class, 'plantas']);
     Route::get('empleado/telegram-pendientes', [EmpleadoCrudController::class, 'telegramPendientes']);
     Route::get('empleado/telegram-pendientes-view', [EmpleadoCrudController::class, 'telegramPendientesView']);
     Route::post('empleado/telegram-email-pendientes', [EmpleadoCrudController::class, 'enviarTelegramEmailsPendientes']);
@@ -91,6 +92,7 @@ Route::group([
     Route::post('ipt/{id}/create-followup', [IptInspectionCrudController::class, 'storeFollowup'])->whereNumber('id');
     Route::get('ipt/{id}/edit', [IptInspectionCrudController::class, 'editForm'])->whereNumber('id');
     Route::post('ipt/{id}/edit', [IptInspectionCrudController::class, 'updateForm'])->whereNumber('id');
+    Route::get('ipt-inspection/{id}/pdf', [IptInspectionCrudController::class, 'pdf'])->whereNumber('id');
     Route::crud('colombia-holiday', ColombiaHolidayCrudController::class);
     Route::crud('incapacidad', IncapacidadCrudController::class);
     Route::get('incapacidad/import', [IncapacidadCrudController::class, 'importForm']);

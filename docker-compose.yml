@@ -35,5 +35,19 @@ services:
     volumes:
       - db_data:/var/lib/mysql
 
+  phpmyadmin:
+    image: phpmyadmin:5-apache
+    container_name: genesis_phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER: genesis
+      PMA_PASSWORD: genesis123
+    depends_on:
+      - db
+
 volumes:
   db_data:

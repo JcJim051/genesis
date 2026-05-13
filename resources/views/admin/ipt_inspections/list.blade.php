@@ -16,6 +16,38 @@
   $scopeLabel = $summary['scope_label'] ?? 'Global';
 @endphp
 
+@push('after_styles')
+<style>
+  #crudTable {
+    width: 100% !important;
+    table-layout: fixed;
+  }
+  #crudTable th,
+  #crudTable td {
+    white-space: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    word-break: break-word;
+  }
+  #crudTable th:nth-child(1), #crudTable td:nth-child(1) { width: 14%; } /* Fecha */
+  #crudTable th:nth-child(2), #crudTable td:nth-child(2) { width: 48%; } /* Persona */
+  #crudTable th:nth-child(3), #crudTable td:nth-child(3) { width: 18%; } /* Puntaje/Riesgo */
+  #crudTable th:last-child, #crudTable td:last-child { width: 20%; white-space: nowrap; }
+  #crudTable td:last-child .btn {
+    padding: .15rem .35rem;
+    font-size: .75rem;
+  }
+  .dataTables_wrapper .table-responsive {
+    overflow-x: hidden !important;
+  }
+  .card .table-responsive table {
+    table-layout: fixed;
+    width: 100%;
+  }
+</style>
+@endpush
+
 @section('content')
   <div class="mb-3 d-flex justify-content-between align-items-center">
     <h3 class="mb-0">Inspecciones IPT</h3>
@@ -103,3 +135,28 @@
     </div>
   </div>
 @endsection
+
+@push('after_scripts')
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const tableId = 'crudTable';
+    const hiddenColumns = [2, 3, 5, 6]; // Plantilla, Tipo, Fecha seguimiento, Estado
+    const visibleColumns = [0, 1, 4, 7]; // Fecha, Persona, Puntaje/Riesgo, Acciones
+
+    const enforceColumns = () => {
+      if (!window.jQuery || !jQuery.fn.DataTable || !jQuery.fn.DataTable.isDataTable('#' + tableId)) return;
+      const dt = jQuery('#' + tableId).DataTable();
+      hiddenColumns.forEach(i => dt.column(i).visible(false, false));
+      visibleColumns.forEach(i => dt.column(i).visible(true, false));
+      dt.columns.adjust().draw(false);
+    };
+
+    const wait = setInterval(() => {
+      if (!window.jQuery || !jQuery.fn.DataTable || !jQuery.fn.DataTable.isDataTable('#' + tableId)) return;
+      clearInterval(wait);
+      enforceColumns();
+      jQuery('#' + tableId).on('draw.dt', enforceColumns);
+    }, 120);
+  });
+</script>
+@endpush

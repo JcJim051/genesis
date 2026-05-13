@@ -93,39 +93,60 @@
             <h5>Observaciones y plan</h5>
             <p><strong>Hallazgos:</strong><br>{{ $entry->hallazgos ?: '—' }}</p>
             <p><strong>Recomendaciones:</strong><br>{{ $entry->recomendaciones ?: '—' }}</p>
-            <p><strong>Acción:</strong><br>{{ $entry->accion ?: '—' }}</p>
-            <p class="mb-0"><strong>Responsable:</strong> {{ $entry->responsable ?: '—' }}</p>
+            @if($entry->template?->mostrar_accion)
+                <p><strong>Acción:</strong><br>{{ $entry->accion ?: '—' }}</p>
+            @endif
+            @if($entry->template?->mostrar_responsable)
+                <p class="mb-0"><strong>Responsable:</strong> {{ $entry->responsable ?: '—' }}</p>
+            @endif
         </div>
 
-        <div class="card p-4 mb-4">
-            <h5>Evidencia fotográfica</h5>
-            <div class="row g-3">
-                <div class="col-md-6">
-                    <strong>Antes</strong>
-                    @if($entry->foto_antes)
-                        <div class="mt-2">
-                            <a href="{{ asset('storage/' . $entry->foto_antes) }}" target="_blank">
-                                <img src="{{ asset('storage/' . $entry->foto_antes) }}" alt="Foto antes" style="max-width:100%; max-height:280px; border-radius:10px;">
-                            </a>
+        @if(($entry->template?->evidencia_fotografica_modo ?? 'none') !== 'none')
+            <div class="card p-4 mb-4">
+                <h5>Evidencia fotográfica</h5>
+                @if(($entry->template?->evidencia_fotografica_modo ?? 'none') === 'general')
+                    <div>
+                        <strong>Evidencia general</strong>
+                        @if($entry->foto_general)
+                            <div class="mt-2">
+                                <a href="{{ asset('storage/' . $entry->foto_general) }}" target="_blank">
+                                    <img src="{{ asset('storage/' . $entry->foto_general) }}" alt="Evidencia general" style="max-width:100%; max-height:280px; border-radius:10px;">
+                                </a>
+                            </div>
+                        @else
+                            <p class="text-muted mb-0 mt-2">Sin evidencia.</p>
+                        @endif
+                    </div>
+                @else
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <strong>Antes</strong>
+                            @if($entry->foto_antes)
+                                <div class="mt-2">
+                                    <a href="{{ asset('storage/' . $entry->foto_antes) }}" target="_blank">
+                                        <img src="{{ asset('storage/' . $entry->foto_antes) }}" alt="Foto antes" style="max-width:100%; max-height:280px; border-radius:10px;">
+                                    </a>
+                                </div>
+                            @else
+                                <p class="text-muted mb-0 mt-2">Sin evidencia.</p>
+                            @endif
                         </div>
-                    @else
-                        <p class="text-muted mb-0 mt-2">Sin evidencia.</p>
-                    @endif
-                </div>
-                <div class="col-md-6">
-                    <strong>Después</strong>
-                    @if($entry->foto_despues)
-                        <div class="mt-2">
-                            <a href="{{ asset('storage/' . $entry->foto_despues) }}" target="_blank">
-                                <img src="{{ asset('storage/' . $entry->foto_despues) }}" alt="Foto después" style="max-width:100%; max-height:280px; border-radius:10px;">
-                            </a>
+                        <div class="col-md-6">
+                            <strong>Después</strong>
+                            @if($entry->foto_despues)
+                                <div class="mt-2">
+                                    <a href="{{ asset('storage/' . $entry->foto_despues) }}" target="_blank">
+                                        <img src="{{ asset('storage/' . $entry->foto_despues) }}" alt="Foto después" style="max-width:100%; max-height:280px; border-radius:10px;">
+                                    </a>
+                                </div>
+                            @else
+                                <p class="text-muted mb-0 mt-2">Sin evidencia.</p>
+                            @endif
                         </div>
-                    @else
-                        <p class="text-muted mb-0 mt-2">Sin evidencia.</p>
-                    @endif
-                </div>
+                    </div>
+                @endif
             </div>
-        </div>
+        @endif
 
         @if($entry->tipo === 'initial' && $entry->followups->isNotEmpty())
             <div class="card p-4">

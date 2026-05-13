@@ -15,9 +15,17 @@
         .mt-8 { margin-top: 8px; }
         .mt-12 { margin-top: 12px; }
         .mb-6 { margin-bottom: 6px; }
+        .genesis-watermark {
+            position: fixed;
+            right: 10px;
+            bottom: 8px;
+            font-size: 9px;
+            color: #9ca3af;
+        }
     </style>
 </head>
 <body>
+    @php $genesisLogoPath = public_path('images/brand/genesis-email.png'); @endphp
     <div class="title">ACTA DE REINCORPORACIÓN LABORAL</div>
     <div class="subtitle">GESTIÓN DE TALENTO HUMANO Y SEGURIDAD Y SALUD EN EL TRABAJO</div>
 
@@ -203,5 +211,11 @@
         Decreto 1072 de 2015 y Resolución 3050 de 2022. El trabajador se compromete a dar cumplimiento a las recomendaciones
         tanto en el ámbito extralaboral, como en el intralaboral.
     </p>
+    <div class="genesis-watermark">
+        @if(file_exists($genesisLogoPath))
+            <img src="{{ $genesisLogoPath }}" alt="Genesis" style="height:10px; vertical-align:middle; margin-right:4px;">
+        @endif
+        <span style="vertical-align:middle;">Generado por plataforma Genesis</span>
+    </div>
 </body>
 </html>

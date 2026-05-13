@@ -23,6 +23,7 @@ class IptInspection extends Model
         'fecha_proximo_seguimiento_sugerida',
         'foto_antes',
         'foto_despues',
+        'foto_general',
         'hallazgos',
         'recomendaciones',
         'accion',

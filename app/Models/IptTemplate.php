@@ -15,10 +15,15 @@ class IptTemplate extends Model
         'codigo',
         'segmento',
         'activo',
+        'evidencia_fotografica_modo',
+        'mostrar_accion',
+        'mostrar_responsable',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
+        'mostrar_accion' => 'boolean',
+        'mostrar_responsable' => 'boolean',
     ];
 
     public function cliente()

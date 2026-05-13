@@ -42,6 +42,27 @@
                         <label class="form-label">Segmento / población</label>
                         <input class="form-control" name="segmento" value="{{ old('segmento', $template->segmento) }}" placeholder="Administrativo VDT / Operativo">
                     </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Evidencia fotográfica</label>
+                        <select class="form-control" name="evidencia_fotografica_modo" required>
+                            @php $modoEvidencia = old('evidencia_fotografica_modo', $template->evidencia_fotografica_modo ?? 'none'); @endphp
+                            <option value="none" @selected($modoEvidencia === 'none')>Oculta</option>
+                            <option value="before_after" @selected($modoEvidencia === 'before_after')>Antes y después</option>
+                            <option value="general" @selected($modoEvidencia === 'general')>Una evidencia general</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <label class="form-check">
+                            <input class="form-check-input" type="checkbox" name="mostrar_accion" value="1" @checked(old('mostrar_accion', $template->mostrar_accion ?? true))>
+                            <span class="form-check-label">Mostrar campo Acción</span>
+                        </label>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <label class="form-check">
+                            <input class="form-check-input" type="checkbox" name="mostrar_responsable" value="1" @checked(old('mostrar_responsable', $template->mostrar_responsable ?? true))>
+                            <span class="form-check-label">Mostrar campo Responsable</span>
+                        </label>
+                    </div>
                     <div class="col-md-2 d-flex align-items-end">
                         <label class="form-check">
                             <input class="form-check-input" type="checkbox" name="activo" value="1" @checked(old('activo', $template->activo ?? true))>

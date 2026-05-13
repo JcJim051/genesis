@@ -117,33 +117,49 @@
                     </div>
                 </div>
 
-                <div class="card border p-3 mb-3">
-                    <h6>Evidencia fotográfica</h6>
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Foto antes</label>
-                            <input type="file" class="form-control" name="foto_antes" accept="image/*" {{ empty($inspection?->foto_antes) ? 'required' : '' }}>
-                            @if(!empty($inspection?->foto_antes))
-                                <div class="mt-2">
-                                    <a href="{{ asset('storage/' . $inspection->foto_antes) }}" target="_blank">
-                                        <img src="{{ asset('storage/' . $inspection->foto_antes) }}" alt="Foto antes" style="max-height:120px; border-radius:8px;">
-                                    </a>
+                @if(($template->evidencia_fotografica_modo ?? 'none') !== 'none')
+                    <div class="card border p-3 mb-3">
+                        <h6>Evidencia fotográfica</h6>
+                        <div class="row g-3">
+                            @if(($template->evidencia_fotografica_modo ?? 'none') === 'before_after')
+                                <div class="col-md-6">
+                                    <label class="form-label">Foto antes</label>
+                                    <input type="file" class="form-control" name="foto_antes" accept="image/*">
+                                    @if(!empty($inspection?->foto_antes))
+                                        <div class="mt-2">
+                                            <a href="{{ asset('storage/' . $inspection->foto_antes) }}" target="_blank">
+                                                <img src="{{ asset('storage/' . $inspection->foto_antes) }}" alt="Foto antes" style="max-height:120px; border-radius:8px;">
+                                            </a>
+                                        </div>
+                                    @endif
                                 </div>
-                            @endif
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Foto después</label>
-                            <input type="file" class="form-control" name="foto_despues" accept="image/*" {{ empty($inspection?->foto_despues) ? 'required' : '' }}>
-                            @if(!empty($inspection?->foto_despues))
-                                <div class="mt-2">
-                                    <a href="{{ asset('storage/' . $inspection->foto_despues) }}" target="_blank">
-                                        <img src="{{ asset('storage/' . $inspection->foto_despues) }}" alt="Foto después" style="max-height:120px; border-radius:8px;">
-                                    </a>
+                                <div class="col-md-6">
+                                    <label class="form-label">Foto después</label>
+                                    <input type="file" class="form-control" name="foto_despues" accept="image/*">
+                                    @if(!empty($inspection?->foto_despues))
+                                        <div class="mt-2">
+                                            <a href="{{ asset('storage/' . $inspection->foto_despues) }}" target="_blank">
+                                                <img src="{{ asset('storage/' . $inspection->foto_despues) }}" alt="Foto después" style="max-height:120px; border-radius:8px;">
+                                            </a>
+                                        </div>
+                                    @endif
+                                </div>
+                            @else
+                                <div class="col-md-12">
+                                    <label class="form-label">Evidencia general</label>
+                                    <input type="file" class="form-control" name="foto_general" accept="image/*">
+                                    @if(!empty($inspection?->foto_general))
+                                        <div class="mt-2">
+                                            <a href="{{ asset('storage/' . $inspection->foto_general) }}" target="_blank">
+                                                <img src="{{ asset('storage/' . $inspection->foto_general) }}" alt="Evidencia general" style="max-height:120px; border-radius:8px;">
+                                            </a>
+                                        </div>
+                                    @endif
                                 </div>
                             @endif
                         </div>
                     </div>
-                </div>
+                @endif
 
                 <div class="row g-3">
                     <div class="col-md-6">
@@ -154,14 +170,18 @@
                         <label class="form-label">Recomendaciones</label>
                         <textarea class="form-control" name="recomendaciones" rows="3">{{ old('recomendaciones', $inspection->recomendaciones ?? '') }}</textarea>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Acción</label>
-                        <textarea class="form-control" name="accion" rows="2">{{ old('accion', $inspection->accion ?? '') }}</textarea>
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Responsable</label>
-                        <input class="form-control" name="responsable" value="{{ old('responsable', $inspection->responsable ?? '') }}">
-                    </div>
+                    @if($template->mostrar_accion)
+                        <div class="col-md-6">
+                            <label class="form-label">Acción</label>
+                            <textarea class="form-control" name="accion" rows="2">{{ old('accion', $inspection->accion ?? '') }}</textarea>
+                        </div>
+                    @endif
+                    @if($template->mostrar_responsable)
+                        <div class="col-md-3">
+                            <label class="form-label">Responsable</label>
+                            <input class="form-control" name="responsable" value="{{ old('responsable', $inspection->responsable ?? '') }}">
+                        </div>
+                    @endif
                     <div class="col-md-3">
                         <label class="form-label">Estado</label>
                         <select class="form-control" name="estado">

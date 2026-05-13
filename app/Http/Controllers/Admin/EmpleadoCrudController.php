@@ -88,33 +88,55 @@ class EmpleadoCrudController extends CrudController
         CRUD::setValidation(EmpleadoRequest::class);
         $this->enforceEntryScope();
 
-        CRUD::field('cliente_id')
-            ->type('select')
-            ->label('Empresa')
-            ->entity('cliente')
-            ->model(\App\Models\Cliente::class)
-            ->attribute('nombre')
-            ->wrapper(['class' => 'form-group col-md-4'])
-            ->options(function ($query) {
+        CRUD::addField([
+            'name' => 'cliente_id',
+            'type' => 'select',
+            'label' => 'Empresa',
+            'entity' => 'cliente',
+            'model' => \App\Models\Cliente::class,
+            'attribute' => 'nombre',
+            'wrapper' => ['class' => 'form-group col-md-4'],
+            'options' => function ($query) {
                 if ($this->isAdmin()) {
                     return $query->orderBy('nombre')->get();
                 }
 
                 $allowed = $this->allowedEmpresaIdsForCreate();
                 return $query->whereIn('id', $allowed ?: [0])->orderBy('nombre')->get();
-            });
+            },
+            'attributes' => [
+                'id' => 'empleado_cliente_id',
+            ],
+        ]);
 
-        CRUD::field('sucursal_id')
-            ->type('select')
-            ->label('Planta')
-            ->entity('sucursal')
-            ->model(\App\Models\Sucursal::class)
-            ->attribute('nombre')
-            ->wrapper(['class' => 'form-group col-md-4'])
-            ->options(function ($query) {
-                $allowed = $this->allowedPlantaIdsForCreate();
-                return $query->whereIn('id', $allowed ?: [0])->orderBy('nombre')->get();
-            });
+        CRUD::addField([
+            'name' => 'sucursal_id',
+            'type' => 'select',
+            'label' => 'Planta',
+            'entity' => 'sucursal',
+            'model' => \App\Models\Sucursal::class,
+            'attribute' => 'nombre',
+            'wrapper' => ['class' => 'form-group col-md-4'],
+            'options' => function ($query) {
+                $selectedClienteId = (int) old('cliente_id', optional($this->crud->getCurrentEntry())->cliente_id);
+                $allowedPlantas = $this->allowedPlantaIdsForCreate();
+
+                if ($selectedClienteId <= 0) {
+                    return $query->whereRaw('1=0')->get();
+                }
+
+                return $query
+                    ->whereIn('id', $allowedPlantas ?: [0])
+                    ->where('cliente_id', $selectedClienteId)
+                    ->orderBy('nombre')
+                    ->get();
+            },
+            'attributes' => [
+                'id' => 'empleado_sucursal_id',
+                'data-selected' => (string) old('sucursal_id', optional($this->crud->getCurrentEntry())->sucursal_id),
+            ],
+            'hint' => 'Primero selecciona la empresa. Si no hay plantas asociadas, no aparecerán opciones.',
+        ]);
 
         CRUD::field('nombre')->type('text')->label('Nombre')->wrapper(['class' => 'form-group col-md-4']);
         CRUD::field('cedula')->type('text')->label('Cédula')->wrapper(['class' => 'form-group col-md-4']);
@@ -139,6 +161,76 @@ class EmpleadoCrudController extends CrudController
         CRUD::field('fecha_nacimiento')->type('date')->label('Fecha de nacimiento')->wrapper(['class' => 'form-group col-md-4']);
         CRUD::field('fecha_ingreso')->type('date')->label('Fecha de ingreso')->wrapper(['class' => 'form-group col-md-4']);
         CRUD::field('fecha_retiro')->type('date')->label('Fecha de retiro')->wrapper(['class' => 'form-group col-md-4']);
+
+        CRUD::addField([
+            'name' => 'empresa_planta_dependent_script',
+            'type' => 'custom_html',
+            'value' => '<script>
+document.addEventListener("DOMContentLoaded", function () {
+  var empresa = document.getElementById("empleado_cliente_id");
+  var planta = document.getElementById("empleado_sucursal_id");
+  if (!empresa || !planta) return;
+
+  var endpoint = "' . backpack_url('empleado/plantas') . '";
+  var initialSelected = planta.getAttribute("data-selected") || "";
+
+  function resetPlanta(text) {
+    planta.innerHTML = "";
+    var opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = text;
+    planta.appendChild(opt);
+    planta.value = "";
+    if (window.jQuery && window.jQuery.fn.select2) {
+      window.jQuery(planta).trigger("change.select2");
+    }
+  }
+
+  function loadPlantas(clienteId, selectedId) {
+    if (!clienteId) {
+      resetPlanta("Selecciona primero una empresa");
+      return;
+    }
+
+    fetch(endpoint + "?cliente_id=" + encodeURIComponent(clienteId), { headers: { "X-Requested-With": "XMLHttpRequest" } })
+      .then(function (r) { return r.json(); })
+      .then(function (rows) {
+        planta.innerHTML = "";
+        var placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = rows.length ? "Selecciona una planta" : "No hay plantas para esta empresa";
+        planta.appendChild(placeholder);
+
+        rows.forEach(function (item) {
+          var opt = document.createElement("option");
+          opt.value = item.id;
+          opt.textContent = item.nombre;
+          planta.appendChild(opt);
+        });
+
+        if (selectedId && rows.some(function (x) { return String(x.id) === String(selectedId); })) {
+          planta.value = String(selectedId);
+        } else {
+          planta.value = "";
+        }
+
+        if (window.jQuery && window.jQuery.fn.select2) {
+          window.jQuery(planta).trigger("change.select2");
+        }
+      })
+      .catch(function () {
+        resetPlanta("No fue posible cargar plantas");
+      });
+  }
+
+  empresa.addEventListener("change", function () {
+    loadPlantas(empresa.value, "");
+  });
+
+  loadPlantas(empresa.value, initialSelected);
+});
+</script>',
+        ]);
     }
 
     protected function setupUpdateOperation(): void
@@ -227,6 +319,35 @@ class EmpleadoCrudController extends CrudController
             'antiguedad_cargo' => $empleado->getAntiguedadCargoActual(),
             'area_actual' => $empleado->getAreaActual(),
         ]);
+    }
+
+    public function plantas()
+    {
+        if (! backpack_user()) {
+            return response()->json([], 403);
+        }
+
+        $clienteId = (int) request()->query('cliente_id');
+        if ($clienteId <= 0) {
+            return response()->json([]);
+        }
+
+        if (! $this->isAdmin()) {
+            $allowedEmpresas = $this->allowedEmpresaIdsForCreate();
+            if (! in_array($clienteId, $allowedEmpresas, true)) {
+                return response()->json([]);
+            }
+        }
+
+        $allowedPlantas = $this->allowedPlantaIdsForCreate();
+
+        $rows = Sucursal::query()
+            ->where('cliente_id', $clienteId)
+            ->whereIn('id', $allowedPlantas ?: [0])
+            ->orderBy('nombre')
+            ->get(['id', 'nombre']);
+
+        return response()->json($rows);
     }
 
     public function telegramPendientes()

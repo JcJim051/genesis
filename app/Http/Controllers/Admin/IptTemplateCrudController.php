@@ -202,6 +202,9 @@ class IptTemplateCrudController extends CrudController
             'codigo' => 'nullable|string|max:80',
             'segmento' => 'nullable|string|max:255',
             'activo' => 'nullable|boolean',
+            'evidencia_fotografica_modo' => 'required|in:none,before_after,general',
+            'mostrar_accion' => 'nullable|boolean',
+            'mostrar_responsable' => 'nullable|boolean',
         ]);
 
         $targetClienteIds = collect($data['cliente_ids'] ?? [])
@@ -236,6 +239,9 @@ class IptTemplateCrudController extends CrudController
                     'codigo' => $data['codigo'] ?? null,
                     'segmento' => $data['segmento'] ?? null,
                     'activo' => (bool) ($data['activo'] ?? false),
+                    'evidencia_fotografica_modo' => $data['evidencia_fotografica_modo'] ?? 'none',
+                    'mostrar_accion' => (bool) ($data['mostrar_accion'] ?? false),
+                    'mostrar_responsable' => (bool) ($data['mostrar_responsable'] ?? false),
                 ]);
                 $template->save();
 
