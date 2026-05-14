@@ -41,8 +41,6 @@ class EmpleadoCrudController extends CrudController
     protected function setupListOperation(): void
     {
         $this->applyListScope();
-        $this->crud->addButtonFromView('top', 'telegram_pendientes', 'empleado_telegram_pendientes', 'beginning');
-        $this->crud->addButtonFromView('top', 'telegram_pendientes_csv', 'empleado_telegram_pendientes_csv', 'beginning');
         $this->crud->addButtonFromView('top', 'import', 'empleado_import', 'beginning');
 
         CRUD::addColumn([
@@ -403,6 +401,7 @@ document.addEventListener("DOMContentLoaded", function () {
     {
         $this->applyAccessRules();
         $this->applyListScope();
+        $search = trim((string) request()->query('q', ''));
 
         $query = Empleado::query()
             ->whereNull('telegram_chat_id')
@@ -420,17 +419,28 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         }
 
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('nombre', 'like', '%' . $search . '%')
+                    ->orWhere('cedula', 'like', '%' . $search . '%')
+                    ->orWhere('correo_electronico', 'like', '%' . $search . '%');
+            });
+        }
+
         $total = (clone $query)->count();
         $conCorreo = (clone $query)->whereNotNull('correo_electronico')->count();
         $sinCorreo = $total - $conCorreo;
 
-        $empleados = $query->with(['cliente', 'sucursal'])->orderBy('nombre')->paginate(50);
+        $empleados = $query->with(['cliente', 'sucursal'])->orderBy('nombre')->paginate(50)->appends([
+            'q' => $search,
+        ]);
 
         return view('admin.empleados.telegram_pendientes', [
             'empleados' => $empleados,
             'total' => $total,
             'conCorreo' => $conCorreo,
             'sinCorreo' => $sinCorreo,
+            'search' => $search,
         ]);
     }
 

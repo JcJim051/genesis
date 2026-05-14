@@ -58,6 +58,23 @@
     <x-backpack::menu-item title="Inspección IPT" icon="la la-clipboard-list" :link="backpack_url('ipt-inspection')" />
 @endif
 
+@if(backpack_user() && backpack_user()->hasAnyRole(['Administrador','Coordinador general','Coordinador de planta']))
+    <x-backpack::menu-dropdown title="Administración" icon="la la-cogs">
+        @if(backpack_user()->hasAnyRole(['Administrador','Coordinador general']))
+            <x-backpack::menu-dropdown-item
+                title="Google Drive"
+                icon="la la-google"
+                :link="route('integraciones.google-drive.edit')"
+            />
+        @endif
+        <x-backpack::menu-dropdown-item
+            title="Reporte Telegram"
+            icon="la la-telegram"
+            :link="backpack_url('empleado/telegram-pendientes-view')"
+        />
+    </x-backpack::menu-dropdown>
+@endif
+
 @if(backpack_user() && backpack_user()->hasAnyRole(['Administrador','Coordinador general']))
     <x-backpack::menu-dropdown title="Historiales" icon="la la-history">
         <x-backpack::menu-dropdown-item title="Cargos" icon="la la-id-badge" :link="backpack_url('empleado-cargo')" />

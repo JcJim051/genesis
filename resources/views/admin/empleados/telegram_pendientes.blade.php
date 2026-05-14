@@ -10,9 +10,22 @@
                 <span>Con correo: {{ $conCorreo }}</span>
                 <span>Sin correo: {{ $sinCorreo }}</span>
             </div>
-            <div class="mt-3">
-                <input type="text" class="form-control" id="telegram-search" placeholder="Buscar por nombre, cédula o correo...">
-            </div>
+            <form method="GET" class="mt-3">
+                <div class="d-flex gap-2">
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="telegram-search"
+                        name="q"
+                        value="{{ $search ?? '' }}"
+                        placeholder="Buscar por nombre, cédula o correo..."
+                    >
+                    <button type="submit" class="btn btn-outline-secondary">Buscar</button>
+                    @if(!empty($search))
+                        <a href="{{ backpack_url('empleado/telegram-pendientes-view') }}" class="btn btn-light border">Limpiar</a>
+                    @endif
+                </div>
+            </form>
             <div class="mt-3 d-flex gap-2">
                 <a class="btn btn-sm btn-outline-primary" href="{{ backpack_url('empleado/telegram-pendientes') }}">
                     <i class="la la-download"></i> Descargar CSV
@@ -95,14 +108,6 @@ document.addEventListener('click', function (e) {
     }
 });
 
-document.getElementById('telegram-search')?.addEventListener('input', function (e) {
-    const term = (e.target.value || '').toLowerCase();
-    const rows = document.querySelectorAll('#telegram-pendientes-table tbody tr');
-    rows.forEach(row => {
-        const text = row.innerText.toLowerCase();
-        row.style.display = text.includes(term) ? '' : 'none';
-    });
-});
 </script>
 @endpush
 @endsection

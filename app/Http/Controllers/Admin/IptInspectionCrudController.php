@@ -10,6 +10,9 @@ use App\Models\IptTemplate;
 use App\Models\Empleado;
 use App\Models\Programa;
 use App\Models\ProgramaCaso;
+use App\Services\Google\GoogleSheetsMatrixService;
+use App\Support\TenantSelection;
+use App\Support\IntegrationSettings;
 use App\Services\Ipt\BusinessDayService;
 use App\Services\Ipt\IptScoringService;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -21,6 +24,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class IptInspectionCrudController extends CrudController
 {
@@ -177,6 +184,9 @@ class IptInspectionCrudController extends CrudController
         $this->crud->addButtonFromView('line', 'ipt_inspection_edit', 'ipt_inspection_edit', 'beginning');
         $this->crud->addButtonFromView('line', 'ipt_inspection_pdf', 'ipt_inspection_pdf', 'end');
         $this->crud->addButtonFromView('line', 'ipt_inspection_followup', 'ipt_inspection_followup', 'end');
+        $this->crud->addButtonFromView('top', 'ipt_inspection_matrix_open_drive', 'ipt_inspection_matrix_open_drive', 'beginning');
+        $this->crud->addButtonFromView('top', 'ipt_inspection_matrix_download', 'ipt_inspection_matrix_download', 'beginning');
+        $this->crud->addButtonFromView('top', 'ipt_inspection_matrix_sync_drive', 'ipt_inspection_matrix_sync_drive', 'beginning');
         $this->crud->addButtonFromView('top', 'ipt_inspection_create_manual', 'ipt_inspection_create_manual', 'beginning');
     }
 
@@ -222,6 +232,232 @@ class IptInspectionCrudController extends CrudController
         ])->setPaper('a4', 'portrait');
 
         return $pdf->download('ipt_' . $inspection->id . '.pdf');
+    }
+
+    public function downloadMatrix(Request $request): StreamedResponse
+    {
+        $scopeLabel = TenantSelection::humanLabel();
+        $scope = TenantSelection::currentScope();
+
+        $query = $this->baseScopedQueryForList()
+            ->with(['empleado.cliente', 'empleado.sucursal', 'template'])
+            ->orderBy('fecha_inspeccion', 'desc')
+            ->orderBy('id', 'desc');
+
+        $search = trim((string) $request->query('search', ''));
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('hallazgos', 'like', '%' . $search . '%')
+                    ->orWhere('recomendaciones', 'like', '%' . $search . '%')
+                    ->orWhereHas('empleado', function ($eq) use ($search) {
+                        $eq->where('nombre', 'like', '%' . $search . '%')
+                            ->orWhere('cedula', 'like', '%' . $search . '%');
+                    });
+            });
+        }
+
+        $rows = $query->get();
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Matriz IPT');
+
+        $sheet->setCellValue('A1', 'MATRIZ IPT - GENESIS');
+        $sheet->setCellValue('A2', 'Alcance aplicado');
+        $sheet->setCellValue('B2', $scopeLabel);
+        $sheet->setCellValue('A3', 'Usuario');
+        $sheet->setCellValue('B3', backpack_user()?->name ?? '-');
+        $sheet->setCellValue('A4', 'Fecha generación');
+        $sheet->setCellValue('B4', now()->format('Y-m-d H:i:s'));
+        $sheet->setCellValue('D2', 'Modo');
+        $sheet->setCellValue('E2', strtoupper((string) ($scope['mode'] ?? 'all')));
+        $sheet->setCellValue('D3', 'Empresa ID');
+        $sheet->setCellValue('E3', (string) ($scope['empresa_id'] ?? ''));
+        $sheet->setCellValue('D4', 'Planta ID');
+        $sheet->setCellValue('E4', (string) ($scope['planta_id'] ?? ''));
+
+        $headers = [
+            'EMPRESA',
+            'PLANTA',
+            'FECHA',
+            'PERSONA',
+            'CÉDULA',
+            'PLANTILLA',
+            'TIPO',
+            'PUNTAJE',
+            'RIESGO',
+            'HALLAZGOS',
+            'RECOMENDACIONES',
+            'ACCION',
+            'RESPONSABLE',
+            'FECHA SEGUIMIENTO',
+            'ESTADO',
+        ];
+
+        $sheet->fromArray($headers, null, 'A6');
+
+        $line = 7;
+        foreach ($rows as $inspection) {
+            $sheet->fromArray([
+                $inspection->empleado?->cliente?->nombre ?? '',
+                $inspection->empleado?->sucursal?->nombre ?? '',
+                optional($inspection->fecha_inspeccion)->format('Y-m-d') ?? '',
+                $inspection->empleado?->nombre ?? '',
+                $inspection->empleado?->cedula ?? '',
+                $inspection->template?->nombre_publico ?? '',
+                $inspection->tipo === 'followup' ? 'Seguimiento' : 'Inicial',
+                (string) ($inspection->puntaje_total ?? 0),
+                strtoupper((string) ($inspection->nivel_riesgo ?? '')),
+                (string) ($inspection->hallazgos ?? ''),
+                (string) ($inspection->recomendaciones ?? ''),
+                (string) ($inspection->accion ?? ''),
+                (string) ($inspection->responsable ?? ''),
+                optional($inspection->fecha_proximo_seguimiento_sugerida)->format('Y-m-d') ?? '',
+                (string) ($inspection->estado ?? ''),
+            ], null, 'A' . $line);
+
+            $line++;
+        }
+
+        foreach (range('A', 'O') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $writer = new Xlsx($spreadsheet);
+        $filename = 'matriz_ipt_' . str($scope['mode'] ?? 'all')->lower() . '_' . now()->format('Ymd_His') . '.xlsx';
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
+    public function syncMatrixToDrive(GoogleSheetsMatrixService $service)
+    {
+        $scopeLabel = TenantSelection::humanLabel();
+
+        $inspections = $this->baseScopedQueryForList()
+            ->with(['empleado.cliente', 'empleado.sucursal', 'template'])
+            ->orderBy('fecha_inspeccion', 'desc')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        if ($inspections->isEmpty()) {
+            \Alert::warning('No hay inspecciones IPT en el alcance seleccionado para sincronizar.')->flash();
+            return back();
+        }
+
+        $grouped = $inspections->groupBy(fn ($i) => (int) ($i->cliente_id ?? 0));
+        $ok = 0;
+        $errors = [];
+        $links = [];
+
+        foreach ($grouped as $clienteId => $rows) {
+            if ($clienteId <= 0) {
+                continue;
+            }
+
+            $empresaNombre = trim((string) optional($rows->first()->empleado?->cliente)->nombre);
+            if ($empresaNombre === '') {
+                $empresaNombre = 'Empresa_' . $clienteId;
+            }
+
+            $matrixRows = $rows->map(function ($inspection) {
+                return [
+                    $inspection->empleado?->cliente?->nombre ?? '',
+                    $inspection->empleado?->sucursal?->nombre ?? '',
+                    optional($inspection->fecha_inspeccion)->format('Y-m-d') ?? '',
+                    $inspection->empleado?->nombre ?? '',
+                    $inspection->empleado?->cedula ?? '',
+                    $inspection->template?->nombre_publico ?? '',
+                    $inspection->tipo === 'followup' ? 'Seguimiento' : 'Inicial',
+                    (string) ($inspection->puntaje_total ?? 0),
+                    strtoupper((string) ($inspection->nivel_riesgo ?? '')),
+                    (string) ($inspection->hallazgos ?? ''),
+                    (string) ($inspection->recomendaciones ?? ''),
+                    (string) ($inspection->accion ?? ''),
+                    (string) ($inspection->responsable ?? ''),
+                    optional($inspection->fecha_proximo_seguimiento_sugerida)->format('Y-m-d') ?? '',
+                    (string) ($inspection->estado ?? ''),
+                ];
+            })->values()->all();
+
+            try {
+                $result = $service->syncIptCompanyMatrix($clienteId, $empresaNombre, $matrixRows, $scopeLabel);
+                $ok++;
+                $links[] = $empresaNombre . ': ' . ($result['spreadsheet_url'] ?? '');
+            } catch (Throwable $e) {
+                $errors[] = $empresaNombre . ' → ' . $e->getMessage();
+            }
+        }
+
+        if ($ok > 0) {
+            \Alert::success("Sincronización completada. Matrices actualizadas: {$ok}.")->flash();
+        }
+
+        if (! empty($links)) {
+            \Alert::info(implode('<br>', array_map(fn ($x) => e($x), $links)))->flash();
+        }
+
+        if (! empty($errors)) {
+            \Alert::error('Errores en sincronización:<br>' . implode('<br>', array_map(fn ($x) => e($x), $errors)))->flash();
+        }
+
+        return back();
+    }
+
+    public function openDriveMatrices()
+    {
+        $inspections = $this->baseScopedQueryForList()
+            ->with(['empleado.cliente'])
+            ->get(['id', 'cliente_id']);
+
+        if ($inspections->isEmpty()) {
+            \Alert::warning('No hay inspecciones en el alcance seleccionado.')->flash();
+            return back();
+        }
+
+        $empresaIds = $inspections
+            ->pluck('cliente_id')
+            ->filter(fn ($id) => (int) $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($empresaIds)) {
+            \Alert::warning('No se encontraron empresas válidas en el alcance actual.')->flash();
+            return back();
+        }
+
+        $items = [];
+        foreach ($empresaIds as $clienteId) {
+            $cfg = json_decode((string) IntegrationSettings::get('google_drive.company_sheet.' . $clienteId, ''), true);
+            $url = (string) ($cfg['spreadsheet_url'] ?? '');
+            if ($url === '') {
+                continue;
+            }
+
+            $empresa = \App\Models\Cliente::query()->find($clienteId);
+            $items[] = [
+                'empresa' => $empresa?->nombre ?? ('Empresa #' . $clienteId),
+                'url' => $url,
+            ];
+        }
+
+        if (empty($items)) {
+            \Alert::warning('Aún no hay matrices sincronizadas en Drive para este alcance.')->flash();
+            return back();
+        }
+
+        if (count($items) === 1) {
+            return redirect()->away($items[0]['url']);
+        }
+
+        return view('admin.ipt_inspections.drive_links', [
+            'items' => $items,
+            'scopeLabel' => TenantSelection::humanLabel(),
+        ]);
     }
 
     public function createInitialForCase(Request $request, int $programaCasoId)

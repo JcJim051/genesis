@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\EncuestaOpcionCrudController;
 use App\Http\Controllers\Admin\EncuestaPreguntaCrudController;
 use App\Http\Controllers\Admin\EncuestaParticipacionCrudController;
 use App\Http\Controllers\Admin\ExamenCrudController;
+use App\Http\Controllers\Admin\GoogleDriveConfigController;
 use App\Http\Controllers\Admin\EmpleadoAreaCrudController;
 use App\Http\Controllers\Admin\EmpleadoCargoCrudController;
 use App\Http\Controllers\Admin\EmpleadoCrudController;
@@ -44,6 +45,11 @@ Route::group([
 ], function () {
     Route::crud('user', UserCrudController::class);
     Route::post('scope/select', [TenantScopeController::class, 'update']);
+    Route::get('integraciones/google-drive', [GoogleDriveConfigController::class, 'edit'])->name('integraciones.google-drive.edit');
+    Route::post('integraciones/google-drive', [GoogleDriveConfigController::class, 'update'])->name('integraciones.google-drive.update');
+    Route::get('integraciones/google-drive/oauth/redirect', [GoogleDriveConfigController::class, 'oauthRedirect'])->name('integraciones.google-drive.oauth-redirect');
+    Route::get('integraciones/google-drive/oauth/callback', [GoogleDriveConfigController::class, 'oauthCallback'])->name('integraciones.google-drive.oauth-callback');
+    Route::post('integraciones/google-drive/oauth/disconnect', [GoogleDriveConfigController::class, 'oauthDisconnect'])->name('integraciones.google-drive.oauth-disconnect');
     Route::crud('role', RoleCrudController::class);
     Route::crud('permission', PermissionCrudController::class);
     Route::crud('cliente', ClienteCrudController::class);
@@ -93,6 +99,12 @@ Route::group([
     Route::get('ipt/{id}/edit', [IptInspectionCrudController::class, 'editForm'])->whereNumber('id');
     Route::post('ipt/{id}/edit', [IptInspectionCrudController::class, 'updateForm'])->whereNumber('id');
     Route::get('ipt-inspection/{id}/pdf', [IptInspectionCrudController::class, 'pdf'])->whereNumber('id');
+    Route::get('ipt-inspection/matriz/download', [IptInspectionCrudController::class, 'downloadMatrix'])
+        ->name('ipt-inspection.matrix-download');
+    Route::post('ipt-inspection/matriz/sync-drive', [IptInspectionCrudController::class, 'syncMatrixToDrive'])
+        ->name('ipt-inspection.matrix-sync-drive');
+    Route::get('ipt-inspection/matriz/drive', [IptInspectionCrudController::class, 'openDriveMatrices'])
+        ->name('ipt-inspection.matrix-open-drive');
     Route::crud('colombia-holiday', ColombiaHolidayCrudController::class);
     Route::crud('incapacidad', IncapacidadCrudController::class);
     Route::get('incapacidad/import', [IncapacidadCrudController::class, 'importForm']);

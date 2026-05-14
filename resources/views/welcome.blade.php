@@ -124,7 +124,7 @@
                 <a href="#explorar" class="nav-link">Explorar</a>
                 <a href="#beneficios" class="nav-link">Beneficios</a>
                 <a href="#planes" class="nav-link">Planes</a>
-                <a href="/admin/login" class="btn-primary">Login</a>
+                <a href="/admin/dashboard" class="btn-primary">Login</a>
             </nav>
         </header>
 
@@ -134,7 +134,7 @@
                 <h1>Desbloquea el potencial de tu equipo con GENESIS</h1>
                 <p>La plataforma integral para programas SST, seguimiento de casos, reincorporaciones y pausas activas, con comunicación directa y datos accionables.</p>
                 <div class="hero-actions">
-                    <a href="/admin/login" class="btn-primary">Entrar al Panel</a>
+                    <a href="/admin/dashboard" class="btn-primary">Entrar al Panel</a>
                     <a href="#explorar" class="btn-outline">Explorar funciones</a>
                 </div>
                 <div style="margin-top:18px; font-size:13px; color:#6b7280;">Gestión unificada por empresa y planta. Seguimiento en tiempo real.</div>
@@ -260,7 +260,7 @@
                     <h3 style="margin:0; font-size:22px;">Resultados que se notan</h3>
                     <div style="margin-top:10px; color:#6b7280; font-size:14px;">Reduce tiempo administrativo, aumenta participación y mejora la toma de decisiones con datos actualizados.</div>
                 </div>
-                <a href="/admin/login" class="btn-primary">Entrar al Panel</a>
+                <a href="/admin/dashboard" class="btn-primary">Entrar al Panel</a>
             </div>
         </section>
 
@@ -277,7 +277,7 @@
                         <li>• Reportes básicos</li>
                         <li>• Soporte estándar</li>
                     </ul>
-                    <div class="plan-cta"><a href="/admin/login" class="btn-outline">Elegir Prime</a></div>
+                    <div class="plan-cta"><a href="/admin/dashboard" class="btn-outline">Elegir Prime</a></div>
                 </div>
                 <div class="plan-card plan-highlight">
                     <div class="plan-name">Plus</div>
@@ -289,7 +289,7 @@
                         <li>• Envíos programados</li>
                         <li>• Dashboards comparativos</li>
                     </ul>
-                    <div class="plan-cta"><a href="/admin/login" class="btn-primary">Elegir Plus</a></div>
+                    <div class="plan-cta"><a href="/admin/dashboard" class="btn-primary">Elegir Plus</a></div>
                 </div>
                 <div class="plan-card">
                     <div class="plan-name">Pro</div>
@@ -301,7 +301,7 @@
                         <li>• Reportes gerenciales</li>
                         <li>• Soporte prioritario</li>
                     </ul>
-                    <div class="plan-cta"><a href="/admin/login" class="btn-outline">Elegir Pro</a></div>
+                    <div class="plan-cta"><a href="/admin/dashboard" class="btn-outline">Elegir Pro</a></div>
                 </div>
                 <div class="plan-card">
                     <div class="plan-name">Signature</div>
@@ -313,7 +313,7 @@
                         <li>• Reportes ejecutivos</li>
                         <li>• Soporte dedicado</li>
                     </ul>
-                    <div class="plan-cta"><a href="/admin/login" class="btn-outline">Cotizar</a></div>
+                    <div class="plan-cta"><a href="/admin/dashboard" class="btn-outline">Cotizar</a></div>
                 </div>
             </div>
         </section>
@@ -322,7 +322,7 @@
             <h3 style="margin:0; font-size:22px;">¿Listo para transformar tu operación SST?</h3>
             <p>Centraliza el control, mide el impacto y mejora la salud laboral.</p>
             <div class="cta-actions">
-                <a href="/admin/login" class="btn-outline" style="background:#fff;color:#111827;">Entrar al Panel</a>
+                <a href="/admin/dashboard" class="btn-outline" style="background:#fff;color:#111827;">Entrar al Panel</a>
                 <a href="#features" class="btn-outline" style="border-color:rgba(255,255,255,0.6); color:white; background:transparent;">Explorar funciones</a>
             </div>
         </section>
