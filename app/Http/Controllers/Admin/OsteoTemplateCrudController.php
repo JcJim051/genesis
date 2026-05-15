@@ -11,6 +11,7 @@ use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OsteoTemplateCrudController extends CrudController
 {
@@ -37,7 +38,9 @@ class OsteoTemplateCrudController extends CrudController
     protected function setupListOperation(): void
     {
         $this->crud->addButtonFromView('top', 'osteo_template_builder_create', 'osteo_template_builder_create', 'beginning');
+        $this->crud->addButtonFromView('top', 'osteo_template_import', 'osteo_template_import', 'beginning');
         $this->crud->addButtonFromView('line', 'osteo_template_builder', 'osteo_template_builder', 'beginning');
+        $this->crud->addButtonFromView('line', 'osteo_template_export', 'osteo_template_export', 'end');
         $this->crud->addColumn(['name' => 'nombre_publico', 'label' => 'Nombre', 'type' => 'text']);
         $this->crud->addColumn(['name' => 'codigo', 'label' => 'Código', 'type' => 'text']);
         $this->crud->addColumn(['name' => 'segmento', 'label' => 'Segmento', 'type' => 'text']);
@@ -195,6 +198,109 @@ class OsteoTemplateCrudController extends CrudController
         return redirect(backpack_url('osteo-template'))->with('success', 'Plantilla base osteomuscular creada.');
     }
 
+    public function export(int $id): StreamedResponse
+    {
+        $this->enforceEntryScopeOrFail($id);
+        $template = OsteoTemplate::with(['sections.fields'])->findOrFail($id);
+        $payload = [
+            'schema' => 'genesis.osteo_template.v1',
+            'exported_at' => now()->toIso8601String(),
+            'template' => [
+                'nombre_publico' => $template->nombre_publico,
+                'codigo' => $template->codigo,
+                'segmento' => $template->segmento,
+                'activo' => (bool) $template->activo,
+            ],
+            'sections' => $template->sections->sortBy('orden')->values()->map(function ($s) {
+                return [
+                    'titulo' => $s->titulo,
+                    'orden' => (int) $s->orden,
+                    'fields' => $s->fields->sortBy('orden')->values()->map(fn ($f) => [
+                        'label' => $f->label,
+                        'key_name' => $f->key_name,
+                        'tipo' => $f->tipo,
+                        'options_json' => $f->options_json,
+                        'meta_json' => $f->meta_json,
+                        'required' => (bool) $f->required,
+                        'orden' => (int) $f->orden,
+                    ])->all(),
+                ];
+            })->all(),
+        ];
+
+        $name = 'osteo_template_' . $template->cliente_id . '_' . $template->id . '.json';
+        return response()->streamDownload(function () use ($payload) {
+            echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        }, $name, ['Content-Type' => 'application/json']);
+    }
+
+    public function importForm()
+    {
+        return view('admin.osteo_templates.import', ['clientes' => $this->clientesPermitidos()]);
+    }
+
+    public function importStore(Request $request)
+    {
+        $data = $request->validate([
+            'cliente_id' => 'required|integer|exists:clientes,id',
+            'template_file' => 'required|file|mimes:json,txt',
+            'replace' => 'nullable|boolean',
+        ]);
+        $clienteId = (int) $data['cliente_id'];
+        $this->validateClientePermitido($clienteId);
+
+        $payload = json_decode((string) file_get_contents($request->file('template_file')->getRealPath()), true);
+        if (! is_array($payload) || ($payload['schema'] ?? '') !== 'genesis.osteo_template.v1') {
+            return back()->withInput()->with('error', 'Archivo inválido. Debe ser exportado desde Genesis (Osteo v1).');
+        }
+
+        DB::transaction(function () use ($payload, $clienteId, $data) {
+            $tplData = $payload['template'] ?? [];
+            $query = OsteoTemplate::query()->where('cliente_id', $clienteId)
+                ->where('nombre_publico', (string) ($tplData['nombre_publico'] ?? ''));
+            if (! empty($tplData['codigo'])) {
+                $query->where('codigo', (string) $tplData['codigo']);
+            }
+            $existing = $query->first();
+            if ($existing && ! empty($data['replace'])) {
+                $existing->delete();
+                $existing = null;
+            }
+            $template = $existing ?: new OsteoTemplate();
+            $template->fill([
+                'cliente_id' => $clienteId,
+                'nombre_publico' => (string) ($tplData['nombre_publico'] ?? 'Plantilla Osteomuscular'),
+                'codigo' => $tplData['codigo'] ?? null,
+                'segmento' => $tplData['segmento'] ?? null,
+                'activo' => (bool) ($tplData['activo'] ?? true),
+            ]);
+            $template->save();
+
+            OsteoTemplateSection::where('template_id', $template->id)->delete();
+            foreach (($payload['sections'] ?? []) as $sData) {
+                $section = OsteoTemplateSection::create([
+                    'template_id' => $template->id,
+                    'titulo' => (string) ($sData['titulo'] ?? 'Sección'),
+                    'orden' => (int) ($sData['orden'] ?? 0),
+                ]);
+                foreach (($sData['fields'] ?? []) as $fData) {
+                    OsteoTemplateField::create([
+                        'section_id' => $section->id,
+                        'label' => (string) ($fData['label'] ?? ''),
+                        'key_name' => $fData['key_name'] ?? null,
+                        'tipo' => (string) ($fData['tipo'] ?? 'text'),
+                        'options_json' => $fData['options_json'] ?? null,
+                        'meta_json' => $fData['meta_json'] ?? null,
+                        'required' => (bool) ($fData['required'] ?? false),
+                        'orden' => (int) ($fData['orden'] ?? 0),
+                    ]);
+                }
+            }
+        });
+
+        return redirect(backpack_url('osteo-template'))->with('success', 'Plantilla osteomuscular importada correctamente.');
+    }
+
     private function syncStructure(OsteoTemplate $template, Request $request, bool $forceCreate = false): void
     {
         $sectionIds = [];
@@ -270,4 +376,3 @@ class OsteoTemplateCrudController extends CrudController
         }
     }
 }
-

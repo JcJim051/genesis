@@ -14,6 +14,7 @@ use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Artisan;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class IptTemplateCrudController extends CrudController
 {
@@ -48,8 +49,10 @@ class IptTemplateCrudController extends CrudController
         }
 
         $this->crud->addButtonFromView('top', 'ipt_template_builder_create', 'ipt_template_builder_create', 'beginning');
+        $this->crud->addButtonFromView('top', 'ipt_template_import', 'ipt_template_import', 'beginning');
         $this->crud->addButtonFromView('top', 'ipt_template_seed_vdt', 'ipt_template_seed_vdt', 'beginning');
         $this->crud->addButtonFromView('line', 'ipt_template_builder', 'ipt_template_builder', 'beginning');
+        $this->crud->addButtonFromView('line', 'ipt_template_export', 'ipt_template_export', 'end');
 
         CRUD::addColumn([
             'name' => 'nombre_publico',
@@ -270,6 +273,150 @@ class IptTemplateCrudController extends CrudController
         }
 
         return redirect(backpack_url('ipt-template'))->with('success', 'Plantilla VDT precargada para las empresas permitidas.');
+    }
+
+    public function export(int $id): StreamedResponse
+    {
+        $this->enforceEntryScopeOrFail($id);
+        $template = IptTemplate::with(['sections.questions', 'riskRules', 'requirements'])->findOrFail($id);
+        $clienteId = (int) $template->cliente_id;
+        $payload = [
+            'schema' => 'genesis.ipt_template.v1',
+            'exported_at' => now()->toIso8601String(),
+            'template' => [
+                'nombre_publico' => $template->nombre_publico,
+                'codigo' => $template->codigo,
+                'segmento' => $template->segmento,
+                'activo' => (bool) $template->activo,
+                'evidencia_fotografica_modo' => $template->evidencia_fotografica_modo ?? 'none',
+                'mostrar_accion' => (bool) ($template->mostrar_accion ?? false),
+                'mostrar_responsable' => (bool) ($template->mostrar_responsable ?? false),
+            ],
+            'sections' => $template->sections->sortBy('orden')->values()->map(function ($section) {
+                return [
+                    'titulo' => $section->titulo,
+                    'orden' => (int) $section->orden,
+                    'questions' => $section->questions->sortBy('orden')->values()->map(fn ($q) => [
+                        'texto' => $q->texto,
+                        'orden' => (int) $q->orden,
+                        'scorable' => (bool) $q->scorable,
+                        'si_score' => (int) $q->si_score,
+                        'score_on_answer' => (string) ($q->score_on_answer ?? 'si'),
+                    ])->all(),
+                ];
+            })->all(),
+            'risk_rules' => $template->riskRules->sortBy('orden')->values()->map(fn ($r) => [
+                'nivel' => $r->nivel,
+                'min_score' => (int) $r->min_score,
+                'max_score' => (int) $r->max_score,
+                'followup_months' => (int) $r->followup_months,
+                'orden' => (int) $r->orden,
+            ])->all(),
+            'requirements' => $template->requirements->sortBy('orden')->values()->map(fn ($r) => [
+                'nombre' => $r->nombre,
+                'orden' => (int) $r->orden,
+                'activo' => (bool) $r->activo,
+            ])->all(),
+        ];
+
+        $name = 'ipt_template_' . $clienteId . '_' . $id . '.json';
+        return response()->streamDownload(function () use ($payload) {
+            echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        }, $name, ['Content-Type' => 'application/json']);
+    }
+
+    public function importForm()
+    {
+        return view('admin.ipt_templates.import', ['clientes' => $this->clientesPermitidos()]);
+    }
+
+    public function importStore(Request $request)
+    {
+        $data = $request->validate([
+            'cliente_id' => 'required|integer|exists:clientes,id',
+            'template_file' => 'required|file|mimes:json,txt',
+            'replace' => 'nullable|boolean',
+        ]);
+        $clienteId = (int) $data['cliente_id'];
+        $this->validateClientePermitido($clienteId);
+
+        $raw = file_get_contents($request->file('template_file')->getRealPath());
+        $payload = json_decode((string) $raw, true);
+        if (! is_array($payload) || ($payload['schema'] ?? '') !== 'genesis.ipt_template.v1') {
+            return back()->withInput()->with('error', 'Archivo inválido. Debe ser exportado desde Genesis (IPT v1).');
+        }
+
+        DB::transaction(function () use ($payload, $clienteId, $data) {
+            $tplData = $payload['template'] ?? [];
+            $query = IptTemplate::query()->where('cliente_id', $clienteId)
+                ->where('nombre_publico', (string) ($tplData['nombre_publico'] ?? ''));
+            if (! empty($tplData['codigo'])) {
+                $query->where('codigo', (string) $tplData['codigo']);
+            }
+            $existing = $query->first();
+            if ($existing && ! empty($data['replace'])) {
+                $existing->delete();
+                $existing = null;
+            }
+
+            $template = $existing ?: new IptTemplate();
+            $template->fill([
+                'cliente_id' => $clienteId,
+                'nombre_publico' => (string) ($tplData['nombre_publico'] ?? 'Plantilla IPT'),
+                'codigo' => $tplData['codigo'] ?? null,
+                'segmento' => $tplData['segmento'] ?? null,
+                'activo' => (bool) ($tplData['activo'] ?? true),
+                'evidencia_fotografica_modo' => (string) ($tplData['evidencia_fotografica_modo'] ?? 'none'),
+                'mostrar_accion' => (bool) ($tplData['mostrar_accion'] ?? false),
+                'mostrar_responsable' => (bool) ($tplData['mostrar_responsable'] ?? false),
+            ]);
+            $template->save();
+
+            IptTemplateSection::where('template_id', $template->id)->delete();
+            IptTemplateRiskRule::where('template_id', $template->id)->delete();
+            IptTemplateRequirement::where('template_id', $template->id)->delete();
+
+            foreach (($payload['sections'] ?? []) as $sectionData) {
+                $section = IptTemplateSection::create([
+                    'template_id' => $template->id,
+                    'titulo' => (string) ($sectionData['titulo'] ?? 'Sección'),
+                    'orden' => (int) ($sectionData['orden'] ?? 0),
+                ]);
+                foreach (($sectionData['questions'] ?? []) as $qData) {
+                    IptTemplateQuestion::create([
+                        'section_id' => $section->id,
+                        'texto' => (string) ($qData['texto'] ?? ''),
+                        'tipo' => 'si_no_na',
+                        'orden' => (int) ($qData['orden'] ?? 0),
+                        'scorable' => (bool) ($qData['scorable'] ?? false),
+                        'si_score' => (int) ($qData['si_score'] ?? 1),
+                        'score_on_answer' => in_array(($qData['score_on_answer'] ?? 'si'), ['si', 'no'], true) ? $qData['score_on_answer'] : 'si',
+                    ]);
+                }
+            }
+
+            foreach (($payload['risk_rules'] ?? []) as $rData) {
+                IptTemplateRiskRule::create([
+                    'template_id' => $template->id,
+                    'nivel' => (string) ($rData['nivel'] ?? 'bajo'),
+                    'min_score' => (int) ($rData['min_score'] ?? 0),
+                    'max_score' => (int) ($rData['max_score'] ?? 0),
+                    'followup_months' => max(1, (int) ($rData['followup_months'] ?? 1)),
+                    'orden' => (int) ($rData['orden'] ?? 0),
+                ]);
+            }
+
+            foreach (($payload['requirements'] ?? []) as $mData) {
+                IptTemplateRequirement::create([
+                    'template_id' => $template->id,
+                    'nombre' => (string) ($mData['nombre'] ?? ''),
+                    'orden' => (int) ($mData['orden'] ?? 0),
+                    'activo' => (bool) ($mData['activo'] ?? true),
+                ]);
+            }
+        });
+
+        return redirect(backpack_url('ipt-template'))->with('success', 'Plantilla IPT importada correctamente.');
     }
 
     private function authorizeTemplateManagers(): void

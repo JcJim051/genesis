@@ -84,6 +84,9 @@ Route::group([
     Route::crud('diagnostico-programa', DiagnosticoProgramaMapCrudController::class);
     Route::get('diagnostico-programa/defaults', [DiagnosticoProgramaMapCrudController::class, 'defaults']);
     Route::crud('ipt-template', IptTemplateCrudController::class);
+    Route::get('ipt-template/import', [IptTemplateCrudController::class, 'importForm']);
+    Route::post('ipt-template/import', [IptTemplateCrudController::class, 'importStore']);
+    Route::get('ipt-template/{id}/export', [IptTemplateCrudController::class, 'export'])->whereNumber('id');
     Route::get('ipt-template/seed-vdt', [IptTemplateCrudController::class, 'seedVdt']);
     Route::get('ipt-template/builder', [IptTemplateCrudController::class, 'builder']);
     Route::post('ipt-template/builder', [IptTemplateCrudController::class, 'builderSave']);
@@ -109,6 +112,9 @@ Route::group([
         ->name('ipt-inspection.matrix-open-drive');
     Route::crud('colombia-holiday', ColombiaHolidayCrudController::class);
     Route::crud('osteo-template', OsteoTemplateCrudController::class);
+    Route::get('osteo-template/import', [OsteoTemplateCrudController::class, 'importForm']);
+    Route::post('osteo-template/import', [OsteoTemplateCrudController::class, 'importStore']);
+    Route::get('osteo-template/{id}/export', [OsteoTemplateCrudController::class, 'export'])->whereNumber('id');
     Route::get('osteo-template/seed-base', [OsteoTemplateCrudController::class, 'seedBase']);
     Route::get('osteo-template/builder', [OsteoTemplateCrudController::class, 'builder']);
     Route::post('osteo-template/builder', [OsteoTemplateCrudController::class, 'builderSave']);
