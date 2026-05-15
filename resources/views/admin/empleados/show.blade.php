@@ -21,6 +21,7 @@
         'pausaBadges',
         'encuestaRespuestas.encuesta',
         'iptInspections.template',
+        'osteoEvaluations.template',
     ]);
 
     $fmtDate = function ($value) {
@@ -47,6 +48,7 @@
     $pausas = $entry->pausaParticipaciones->sortByDesc('created_at')->values();
     $encuestas = $entry->encuestaRespuestas->sortByDesc('created_at')->values();
     $iptInspections = $entry->iptInspections->sortByDesc('fecha_inspeccion')->values();
+    $osteoEvaluations = $entry->osteoEvaluations->sortByDesc('fecha_valoracion')->values();
     $pausaStats = $entry->pausaStats;
 @endphp
 
@@ -309,6 +311,14 @@
                 @include('admin.ipt_inspections._history_card', [
                     'iptInspections' => $iptInspections,
                     'createInitialUrl' => null,
+                    'showPersonaColumn' => false,
+                    'cardClass' => 'card p-4 h-100',
+                ])
+            </div>
+            <div class="col-md-6">
+                @include('admin.osteo_evaluations._history_card', [
+                    'evaluations' => $osteoEvaluations,
+                    'createUrl' => null,
                     'showPersonaColumn' => false,
                     'cardClass' => 'card p-4 h-100',
                 ])

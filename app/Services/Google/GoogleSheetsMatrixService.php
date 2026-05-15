@@ -27,7 +27,7 @@ class GoogleSheetsMatrixService
 
         $empresaFolderId = $this->ensureFolder($http, $empresaNombre, $rootFolderId);
         $spreadsheetName = 'Matriz IPT - ' . $empresaNombre;
-        $spreadsheet = $this->ensureSpreadsheet($http, $spreadsheetName, $empresaFolderId);
+        $spreadsheet = $this->ensureSpreadsheet($http, $spreadsheetName, $empresaFolderId, 'Matriz IPT');
 
         $spreadsheetId = $spreadsheet['id'];
         $spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/' . $spreadsheetId . '/edit';
@@ -59,6 +59,70 @@ class GoogleSheetsMatrixService
         }
 
         IntegrationSettings::set('google_drive.company_sheet.' . $clienteId, json_encode([
+            'spreadsheet_id' => $spreadsheetId,
+            'spreadsheet_url' => $spreadsheetUrl,
+            'folder_id' => $empresaFolderId,
+            'updated_at' => now()->toDateTimeString(),
+        ]));
+
+        return [
+            'spreadsheet_id' => $spreadsheetId,
+            'spreadsheet_url' => $spreadsheetUrl,
+            'rows' => count($rows),
+        ];
+    }
+
+    public function syncOsteoCompanyMatrix(int $clienteId, string $empresaNombre, array $rows, string $scopeLabel): array
+    {
+        $rootFolderConfig = trim((string) IntegrationSettings::get('google_drive.root_folder_id', ''));
+        if ($rootFolderConfig === '') {
+            throw new RuntimeException('Falta configurar el ID de carpeta raíz de Google Drive.');
+        }
+
+        $accessToken = $this->accessToken();
+        $http = Http::withToken($accessToken)->acceptJson();
+        $rootFolderId = $this->resolveRootFolderId($http, $rootFolderConfig);
+
+        $empresaFolderId = $this->ensureFolder($http, $empresaNombre, $rootFolderId);
+        $spreadsheetName = 'Matriz Valoración Osteomuscular - ' . $empresaNombre;
+        $spreadsheet = $this->ensureSpreadsheet($http, $spreadsheetName, $empresaFolderId, 'Matriz Osteo');
+
+        $spreadsheetId = $spreadsheet['id'];
+        $spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/' . $spreadsheetId . '/edit';
+
+        $values = [];
+        $values[] = ['MATRIZ VALORACIÓN OSTEOMUSCULAR - GENESIS'];
+        $values[] = ['Alcance aplicado', $scopeLabel];
+        $values[] = ['Fecha generación', now()->format('Y-m-d H:i:s')];
+        $values[] = [];
+        $values[] = [
+            'FECHA', 'EMPRESA', 'PLANTA', 'PERSONA', 'CÉDULA', 'PLANTILLA', 'ESTADO', 'EVALUADOR', 'CARGO PROFESIONAL', 'LICENCIA', 'OBSERVACIONES', 'LINK',
+        ];
+        foreach ($rows as $row) {
+            $values[] = $row;
+        }
+
+        $tab = 'Matriz Osteo';
+        $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1:Z50000') . ':clear');
+        $update = $http->put(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1') . '?valueInputOption=RAW', [
+            'range' => $tab . '!A1',
+            'majorDimension' => 'ROWS',
+            'values' => $values,
+        ]);
+        if (! $update->successful()) {
+            $tab = 'Matriz IPT';
+            $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1:Z50000') . ':clear');
+            $update = $http->put(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1') . '?valueInputOption=RAW', [
+                'range' => $tab . '!A1',
+                'majorDimension' => 'ROWS',
+                'values' => $values,
+            ]);
+        }
+        if (! $update->successful()) {
+            throw new RuntimeException('No fue posible actualizar matriz osteomuscular en Sheets: ' . $update->body());
+        }
+
+        IntegrationSettings::set('google_drive.company_sheet_osteo.' . $clienteId, json_encode([
             'spreadsheet_id' => $spreadsheetId,
             'spreadsheet_url' => $spreadsheetUrl,
             'folder_id' => $empresaFolderId,
@@ -204,7 +268,7 @@ class GoogleSheetsMatrixService
         return $id;
     }
 
-    private function ensureSpreadsheet($http, string $name, string $parentId): array
+    private function ensureSpreadsheet($http, string $name, string $parentId, string $sheetTitle = 'Matriz IPT'): array
     {
         $query = sprintf(
             "name = '%s' and '%s' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
@@ -237,7 +301,7 @@ class GoogleSheetsMatrixService
 
         $id = (string) $create->json('id');
 
-        // Renombrar hoja por defecto a "Matriz IPT"
+        // Renombrar hoja por defecto.
         $meta = $http->get(self::SHEETS_BASE . '/' . $id);
         if ($meta->successful()) {
             $sheetId = $meta->json('sheets.0.properties.sheetId');
@@ -247,7 +311,7 @@ class GoogleSheetsMatrixService
                         'updateSheetProperties' => [
                             'properties' => [
                                 'sheetId' => (int) $sheetId,
-                                'title' => 'Matriz IPT',
+                                'title' => $sheetTitle,
                             ],
                             'fields' => 'title',
                         ],

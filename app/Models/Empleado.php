@@ -95,6 +95,11 @@ class Empleado extends Model
         return $this->hasMany(IptInspection::class, 'empleado_id')->orderByDesc('fecha_inspeccion');
     }
 
+    public function osteoEvaluations()
+    {
+        return $this->hasMany(OsteoEvaluation::class, 'empleado_id')->orderByDesc('fecha_valoracion');
+    }
+
     public function getTelegramActivationUrl(): string
     {
         $link = $this->telegramActivationLink;

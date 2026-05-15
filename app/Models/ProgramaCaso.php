@@ -50,4 +50,9 @@ class ProgramaCaso extends Model
     {
         return $this->hasMany(IptInspection::class, 'programa_caso_id')->orderByDesc('fecha_inspeccion');
     }
+
+    public function osteoEvaluations()
+    {
+        return $this->hasMany(OsteoEvaluation::class, 'programa_caso_id')->orderByDesc('fecha_valoracion');
+    }
 }

@@ -16,6 +16,7 @@
         'incapacidades',
         'historial.usuario',
         'iptInspections.empleado',
+        'osteoEvaluations.template',
     ]);
 
     $origen = strtolower((string) ($entry->origen ?? ''));
@@ -46,6 +47,10 @@
     $iptInspections = $entry->iptInspections->sortByDesc('fecha_inspeccion')->values();
     $createInitialUrl = ($entry->programa?->slug ?? null) === 'osteomuscular'
         ? backpack_url('programa-caso/' . $entry->id . '/ipt/create-initial')
+        : null;
+    $osteoEvaluations = $entry->osteoEvaluations->sortByDesc('fecha_valoracion')->values();
+    $osteoCreateUrl = ($entry->programa?->slug ?? null) === 'osteomuscular'
+        ? backpack_url('programa-caso/' . $entry->id . '/osteo-evaluation/create')
         : null;
 @endphp
 
@@ -228,6 +233,13 @@
             @include('admin.ipt_inspections._history_card', [
                 'iptInspections' => $iptInspections,
                 'createInitialUrl' => $createInitialUrl,
+                'showPersonaColumn' => false,
+            ])
+        @endif
+        @if (($entry->programa?->slug ?? null) === 'osteomuscular' || $osteoEvaluations->isNotEmpty())
+            @include('admin.osteo_evaluations._history_card', [
+                'evaluations' => $osteoEvaluations,
+                'createUrl' => $osteoCreateUrl,
                 'showPersonaColumn' => false,
             ])
         @endif

@@ -56,6 +56,7 @@
 
 @if(backpack_user() && backpack_user()->hasAnyRole(['Administrador','Coordinador general','Coordinador de planta','Asesor externo general','Asesor externo planta']))
     <x-backpack::menu-item title="Inspección IPT" icon="la la-clipboard-list" :link="backpack_url('ipt-inspection')" />
+    <x-backpack::menu-item title="Valoración Osteomuscular" icon="la la-notes-medical" :link="backpack_url('osteo-evaluation')" />
 @endif
 
 @if(backpack_user() && backpack_user()->hasAnyRole(['Administrador','Coordinador general','Coordinador de planta']))
@@ -65,6 +66,11 @@
                 title="Google Drive"
                 icon="la la-google"
                 :link="route('integraciones.google-drive.edit')"
+            />
+            <x-backpack::menu-dropdown-item
+                title="Plantillas Osteomuscular"
+                icon="la la-copy"
+                :link="backpack_url('osteo-template')"
             />
         @endif
         <x-backpack::menu-dropdown-item
