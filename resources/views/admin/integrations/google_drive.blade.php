@@ -46,7 +46,13 @@
                 <div class="mb-3">
                     <label class="form-label">ID carpeta raíz (Genesis)</label>
                     <input type="text" class="form-control" name="root_folder_id" value="{{ old('root_folder_id', $rootFolderId) }}" placeholder="1AbCdEfGhIjK...">
-                    <small class="text-muted">Ejemplo de estructura final: <strong>Genesis / {Empresa} / {Matrices}</strong></small>
+                    <small class="text-muted">La matriz por empresa sigue en <strong>{carpeta raíz} / {Empresa}</strong>. Las IPT individuales van a <strong>Genesis / {Empresa} / {AÑO} / {MES} / {Trabajador}</strong>.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">ID plantilla IPT (Google Spreadsheet)</label>
+                    <input type="text" class="form-control" name="ipt_template_spreadsheet_id" value="{{ old('ipt_template_spreadsheet_id', $iptTemplateSpreadsheetId ?? '') }}" placeholder="1e6Lr0lzrctebCCr8J5PM8z27TUKVnraU">
+                    <small class="text-muted">Se copia este archivo (pestañas FORMATO IPT y SEGUIMIENTOS) a la carpeta del trabajador. Puedes pegar el ID o la URL completa.</small>
                 </div>
 
                 <h6 class="mb-2">Cuenta Google del profesional</h6>

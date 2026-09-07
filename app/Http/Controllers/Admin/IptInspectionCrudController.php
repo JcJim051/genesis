@@ -414,11 +414,15 @@ class IptInspectionCrudController extends CrudController
             ->with([
                 'empleado.cliente',
                 'empleado.sucursal',
+                'empleado.cargos',
+                'empleado.areas',
                 'programaCaso.empleado.cliente',
                 'programaCaso.empleado.sucursal',
                 'template.sections.questions',
                 'answers',
                 'requirements.requirement',
+                'creator',
+                'initialInspection',
             ])
             ->orderBy('fecha_inspeccion', 'desc')
             ->orderBy('id', 'desc')
@@ -438,7 +442,8 @@ class IptInspectionCrudController extends CrudController
                 $result = $service->syncIptInspectionSheet($inspection);
                 $ok++;
                 $name = (string) ($result['name'] ?? ('IPT-' . $inspection->id));
-                $links[] = $name . ': ' . ($result['spreadsheet_url'] ?? '');
+                $path = (string) ($result['path'] ?? '');
+                $links[] = ($path !== '' ? $path . ' / ' : '') . $name . ': ' . ($result['spreadsheet_url'] ?? '');
             } catch (Throwable $e) {
                 $errors[] = 'IPT #' . $inspection->id . ' → ' . $e->getMessage();
             }

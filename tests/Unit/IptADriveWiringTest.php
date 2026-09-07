@@ -45,5 +45,19 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString('function syncIptCompanyMatrix', $service);
         $this->assertStringContainsString("google_drive.ipt_sheet.", $service);
         $this->assertStringContainsString("google_drive.company_sheet.", $service);
+        $this->assertStringContainsString('copyIptTemplate', $service);
+        $this->assertStringContainsString('ensureGenesisFolder', $service);
+        $this->assertStringContainsString('IptDriveLayout', $service);
+        $this->assertStringContainsString('FORMATO IPT', $service);
+        $this->assertStringContainsString('SEGUIMIENTOS', $service);
+        $this->assertStringNotContainsString("'Resumen'", $service);
+        $this->assertStringNotContainsString("'Respuestas'", $service);
+        $this->assertStringNotContainsString("'Requerimientos'", $service);
+
+        $layout = file_get_contents(dirname(__DIR__, 2) . '/app/Services/Google/IptDriveLayout.php');
+        $this->assertIsString($layout);
+        $this->assertStringContainsString('Genesis / {Empresa} / {AÑO} / {MES} / {Trabajador}', $layout);
+        $this->assertStringContainsString("1e6Lr0lzrctebCCr8J5PM8z27TUKVnraU", $layout);
+        $this->assertStringContainsString("google_drive.ipt_worker_sheet.", $layout);
     }
 }

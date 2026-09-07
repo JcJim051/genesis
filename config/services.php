@@ -48,4 +48,11 @@ return [
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
     ],
 
+    'google' => [
+        'ipt_template_spreadsheet_id' => env(
+            'GOOGLE_DRIVE_IPT_TEMPLATE_SPREADSHEET_ID',
+            '1e6Lr0lzrctebCCr8J5PM8z27TUKVnraU'
+        ),
+    ],
+
 ];

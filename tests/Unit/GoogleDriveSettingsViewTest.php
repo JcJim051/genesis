@@ -16,6 +16,9 @@ class GoogleDriveSettingsViewTest extends TestCase
 
         $this->assertStringContainsString("route('integraciones.google-drive.oauth-disconnect')", $blade);
         $this->assertStringContainsString("route('integraciones.google-drive.oauth-redirect')", $blade);
+        $this->assertStringContainsString('ipt_template_spreadsheet_id', $blade);
+        $this->assertStringContainsString('ID plantilla IPT', $blade);
+        $this->assertStringContainsString('Genesis / {Empresa} / {AÑO} / {MES} / {Trabajador}', $blade);
         $this->assertStringContainsString('@csrf', $blade);
 
         preg_match_all('/<form\b[^>]*>|<\/form>/i', $blade, $matches);
