@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\Google\GoogleSheetsMatrixService;
 use App\Support\IntegrationSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 
 class GoogleDriveConfigController extends Controller
 {
@@ -189,5 +191,29 @@ class GoogleDriveConfigController extends Controller
         IntegrationSettings::set('google_drive.oauth_last_error', 'Conexión OAuth removida manualmente.');
         IntegrationSettings::set('google_drive.oauth_last_debug', '');
         return back()->with('success', 'Conexión OAuth desconectada.');
+    }
+
+    public function oauthTestConnection(GoogleSheetsMatrixService $sheets)
+    {
+        abort_unless(backpack_user() && backpack_user()->hasAnyRole(['Administrador', 'Coordinador general']), 403);
+
+        try {
+            $sheets->refreshAccessToken();
+            IntegrationSettings::set('google_drive.oauth_last_error', '');
+            IntegrationSettings::set('google_drive.oauth_last_debug', json_encode([
+                'step' => 'test_connection_success',
+                'has_access_token' => true,
+            ], JSON_UNESCAPED_UNICODE));
+
+            return back()->with('success', 'Conexión OAuth verificada. El token se renovó correctamente.');
+        } catch (RuntimeException $e) {
+            IntegrationSettings::set('google_drive.oauth_last_error', $e->getMessage());
+            IntegrationSettings::set('google_drive.oauth_last_debug', json_encode([
+                'step' => 'test_connection_failed',
+                'error' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE));
+
+            return back()->withErrors($e->getMessage());
+        }
     }
 }
