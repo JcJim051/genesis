@@ -105,4 +105,12 @@ class IptSheetTitleResolverTest extends TestCase
 
         $this->assertSame(['FORMATO IPT', 'SEGUIMIENTOS'], $titles);
     }
+
+    public function test_a1_quotes_the_resolved_real_title_not_the_php_constant(): void
+    {
+        $realTitle = "Formato\u{00A0}Ipt";
+        $this->assertSame("'" . $realTitle . "'!B2", IptDriveLayout::a1($realTitle, 'B2'));
+        $this->assertSame("'Formato Ipt 2024'!A1:L500", IptDriveLayout::a1('Formato Ipt 2024', 'A1:L500'));
+        $this->assertNotSame(IptDriveLayout::a1(IptDriveLayout::FORMATO_TAB, 'B2'), IptDriveLayout::a1($realTitle, 'B2'));
+    }
 }
