@@ -113,12 +113,14 @@ class IptDriveLayoutTest extends TestCase
 
     public function test_a1_ranges_quote_sheet_names_with_spaces_and_special_chars(): void
     {
-        $this->assertSame("'FORMATO IPT'!B2", IptDriveLayout::a1Range(IptDriveLayout::FORMATO_TAB, 'B2'));
-        $this->assertSame("'FORMATO IPT'!A1:L500", IptDriveLayout::a1Range(IptDriveLayout::FORMATO_TAB, 'A1:L500'));
-        $this->assertSame("'SEGUIMIENTOS'!A3", IptDriveLayout::a1Range(IptDriveLayout::SEGUIMIENTOS_TAB, 'A3'));
-        $this->assertSame("'O''Brien Sheet'!A1", IptDriveLayout::a1Range("O'Brien Sheet", 'A1'));
+        $this->assertSame("'FORMATO IPT'!B2", IptDriveLayout::a1(IptDriveLayout::FORMATO_TAB, 'B2'));
+        $this->assertSame("'FORMATO IPT'!A1:L500", IptDriveLayout::a1(IptDriveLayout::FORMATO_TAB, 'A1:L500'));
+        $this->assertSame('SEGUIMIENTOS!A3', IptDriveLayout::a1(IptDriveLayout::SEGUIMIENTOS_TAB, 'A3'));
+        $this->assertSame('SEGUIMIENTOS!A1:L500', IptDriveLayout::a1(IptDriveLayout::SEGUIMIENTOS_TAB, 'A1:L500'));
+        $this->assertSame("'O''Brien Sheet'!A1", IptDriveLayout::a1("O'Brien Sheet", 'A1'));
+        $this->assertSame("'Matriz IPT'!A1", IptDriveLayout::a1('Matriz IPT', 'A1'));
         $this->assertSame('B2', IptDriveLayout::cellFromA1Range("'FORMATO IPT'!B2"));
-        $this->assertSame('A1:L500', IptDriveLayout::cellFromA1Range("'SEGUIMIENTOS'!A1:L500"));
+        $this->assertSame('A1:L500', IptDriveLayout::cellFromA1Range('SEGUIMIENTOS!A1:L500'));
     }
 
     private function inspection(string $empresa, string $trabajador, string $fecha): IptInspection

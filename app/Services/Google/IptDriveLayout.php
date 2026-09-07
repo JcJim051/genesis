@@ -206,22 +206,35 @@ class IptDriveLayout
     }
 
     /**
-     * Quote a sheet title for Sheets API A1 notation.
+     * Quote a sheet title for Sheets API A1 notation when required.
      *
      * Names with spaces or special characters must be wrapped in single quotes
      * (e.g. FORMATO IPT → 'FORMATO IPT'). Existing quotes are doubled.
+     * Simple identifiers such as SEGUIMIENTOS stay unquoted.
      */
     public static function quoteSheetName(string $sheetName): string
     {
+        if (! self::sheetNameNeedsQuotes($sheetName)) {
+            return $sheetName;
+        }
+
         return "'" . str_replace("'", "''", $sheetName) . "'";
     }
 
     /**
-     * A1 range for values.update / values.batchUpdate (quoted sheet + cell).
+     * A1 range for values.update / values.batchUpdate.
+     *
+     * Quotes the tab when it contains spaces or special characters:
+     * FORMATO IPT!B2 → 'FORMATO IPT'!B2
      */
-    public static function a1Range(string $sheetName, string $a1): string
+    public static function a1(string $tab, string $cell): string
     {
-        return self::quoteSheetName($sheetName) . '!' . $a1;
+        return self::quoteSheetName($tab) . '!' . $cell;
+    }
+
+    private static function sheetNameNeedsQuotes(string $sheetName): bool
+    {
+        return $sheetName === '' || ! preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $sheetName);
     }
 
     /**
@@ -248,7 +261,7 @@ class IptDriveLayout
 
         $push = function (string $cell, mixed $value) use (&$ranges) {
             $ranges[] = [
-                'range' => self::a1Range(self::FORMATO_TAB, $cell),
+                'range' => self::a1(self::FORMATO_TAB, $cell),
                 'values' => [[$value]],
             ];
         };

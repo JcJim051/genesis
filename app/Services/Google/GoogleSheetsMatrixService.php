@@ -557,7 +557,7 @@ class GoogleSheetsMatrixService
     private function upsertSeguimientosRow($http, string $spreadsheetId, IptInspection $inspection, bool $append): void
     {
         $tab = IptDriveLayout::SEGUIMIENTOS_TAB;
-        $read = $http->get(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode(IptDriveLayout::a1Range($tab, 'A1:L500')));
+        $read = $http->get(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode(IptDriveLayout::a1($tab, 'A1:L500')));
         $rows = $read->successful() ? ($read->json('values') ?? []) : [];
         if ($rows === []) {
             $rows = [
@@ -577,7 +577,7 @@ class GoogleSheetsMatrixService
                 ?? $this->nextSeguimientosRowNumber($rows, true);
         }
 
-        $writeRange = IptDriveLayout::a1Range($tab, 'A' . $rowNumber);
+        $writeRange = IptDriveLayout::a1($tab, 'A' . $rowNumber);
         $update = $http->put(
             self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($writeRange) . '?valueInputOption=USER_ENTERED',
             [
