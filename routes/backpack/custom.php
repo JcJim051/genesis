@@ -52,6 +52,7 @@ Route::group([
     Route::get('integraciones/google-drive/oauth/redirect', [GoogleDriveConfigController::class, 'oauthRedirect'])->name('integraciones.google-drive.oauth-redirect');
     Route::get('integraciones/google-drive/oauth/callback', [GoogleDriveConfigController::class, 'oauthCallback'])->name('integraciones.google-drive.oauth-callback');
     Route::post('integraciones/google-drive/oauth/disconnect', [GoogleDriveConfigController::class, 'oauthDisconnect'])->name('integraciones.google-drive.oauth-disconnect');
+    Route::post('integraciones/google-drive/oauth/test', [GoogleDriveConfigController::class, 'oauthTestConnection'])->name('integraciones.google-drive.oauth-test');
     Route::crud('role', RoleCrudController::class);
     Route::crud('permission', PermissionCrudController::class);
     Route::crud('cliente', ClienteCrudController::class);

@@ -296,6 +296,11 @@ class GoogleSheetsMatrixService
         ];
     }
 
+    public function refreshAccessToken(): string
+    {
+        return $this->accessToken();
+    }
+
     private function accessToken(): string
     {
         $oauthRefreshToken = trim((string) IntegrationSettings::get('google_drive.oauth_refresh_token', ''));
