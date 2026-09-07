@@ -71,11 +71,24 @@ class IptInspectionSheetContentTest extends TestCase
         $ranges = IptDriveLayout::formatoValueRanges($this->makeInspection());
         $joined = json_encode($ranges);
 
-        $this->assertStringContainsString('FORMATO IPT!', $joined);
+        $this->assertStringContainsString("'FORMATO IPT'!", $joined);
         $this->assertStringNotContainsString('Resumen', $joined);
         $this->assertStringNotContainsString('Respuestas', $joined);
         $this->assertStringNotContainsString('Requerimientos', $joined);
         $this->assertStringNotContainsString('MATRIZ IPT', $joined);
+    }
+
+    public function test_formato_value_ranges_quote_sheet_name_for_sheets_api(): void
+    {
+        $ranges = IptDriveLayout::formatoValueRanges($this->makeInspection());
+
+        $this->assertNotEmpty($ranges);
+        $this->assertSame("'FORMATO IPT'!B2", $ranges[0]['range']);
+
+        foreach ($ranges as $range) {
+            $this->assertArrayHasKey('range', $range);
+            $this->assertMatchesRegularExpression("/^'FORMATO IPT'![A-Z]+[0-9]+$/", $range['range']);
+        }
     }
 
     public function test_worker_and_folder_names_strip_path_separators(): void

@@ -50,6 +50,9 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString('IptDriveLayout', $service);
         $this->assertStringContainsString('FORMATO IPT', $service);
         $this->assertStringContainsString('SEGUIMIENTOS', $service);
+        $this->assertStringContainsString('IptDriveLayout::a1Range', $service);
+        $this->assertStringNotContainsString("\$tab . '!A1:L500'", $service);
+        $this->assertStringNotContainsString("\$tab . '!A' . \$rowNumber", $service);
         $this->assertStringNotContainsString("'Resumen'", $service);
         $this->assertStringNotContainsString("'Respuestas'", $service);
         $this->assertStringNotContainsString("'Requerimientos'", $service);
@@ -59,5 +62,9 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString('Genesis / {Empresa} / {AÑO} / {MES} / {Trabajador}', $layout);
         $this->assertStringContainsString("1e6Lr0lzrctebCCr8J5PM8z27TUKVnraU", $layout);
         $this->assertStringContainsString("google_drive.ipt_worker_sheet.", $layout);
+        $this->assertStringContainsString('function a1Range', $layout);
+        $this->assertStringContainsString('function quoteSheetName', $layout);
+        $this->assertStringContainsString('self::a1Range(self::FORMATO_TAB, $cell)', $layout);
+        $this->assertStringNotContainsString("self::FORMATO_TAB . '!' . \$cell", $layout);
     }
 }

@@ -206,6 +206,35 @@ class IptDriveLayout
     }
 
     /**
+     * Quote a sheet title for Sheets API A1 notation.
+     *
+     * Names with spaces or special characters must be wrapped in single quotes
+     * (e.g. FORMATO IPT → 'FORMATO IPT'). Existing quotes are doubled.
+     */
+    public static function quoteSheetName(string $sheetName): string
+    {
+        return "'" . str_replace("'", "''", $sheetName) . "'";
+    }
+
+    /**
+     * A1 range for values.update / values.batchUpdate (quoted sheet + cell).
+     */
+    public static function a1Range(string $sheetName, string $a1): string
+    {
+        return self::quoteSheetName($sheetName) . '!' . $a1;
+    }
+
+    /**
+     * Cell/range portion after the sheet prefix (quoted or not).
+     */
+    public static function cellFromA1Range(string $range): string
+    {
+        $pos = strrpos($range, '!');
+
+        return $pos === false ? $range : substr($range, $pos + 1);
+    }
+
+    /**
      * Sheets API value ranges for FORMATO IPT (does not rewrite labels).
      *
      * @param  array{inicial?: string, despues?: string}  $photoLinks
@@ -219,7 +248,7 @@ class IptDriveLayout
 
         $push = function (string $cell, mixed $value) use (&$ranges) {
             $ranges[] = [
-                'range' => self::FORMATO_TAB . '!' . $cell,
+                'range' => self::a1Range(self::FORMATO_TAB, $cell),
                 'values' => [[$value]],
             ];
         };
@@ -323,7 +352,7 @@ class IptDriveLayout
     {
         $map = [];
         foreach (self::formatoValueRanges($inspection, $photoLinks) as $range) {
-            $cell = str_replace(self::FORMATO_TAB . '!', '', $range['range']);
+            $cell = self::cellFromA1Range($range['range']);
             $map[$cell] = $range['values'][0][0] ?? null;
         }
 
