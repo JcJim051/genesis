@@ -52,6 +52,7 @@ Route::group([
     Route::get('integraciones/google-drive/oauth/redirect', [GoogleDriveConfigController::class, 'oauthRedirect'])->name('integraciones.google-drive.oauth-redirect');
     Route::get('integraciones/google-drive/oauth/callback', [GoogleDriveConfigController::class, 'oauthCallback'])->name('integraciones.google-drive.oauth-callback');
     Route::post('integraciones/google-drive/oauth/disconnect', [GoogleDriveConfigController::class, 'oauthDisconnect'])->name('integraciones.google-drive.oauth-disconnect');
+    Route::post('integraciones/google-drive/oauth/test', [GoogleDriveConfigController::class, 'oauthTestConnection'])->name('integraciones.google-drive.oauth-test');
     Route::crud('role', RoleCrudController::class);
     Route::crud('permission', PermissionCrudController::class);
     Route::crud('cliente', ClienteCrudController::class);
@@ -108,6 +109,8 @@ Route::group([
         ->name('ipt-inspection.matrix-download');
     Route::post('ipt-inspection/matriz/sync-drive', [IptInspectionCrudController::class, 'syncMatrixToDrive'])
         ->name('ipt-inspection.matrix-sync-drive');
+    Route::post('ipt-inspection/ipt-a-drive', [IptInspectionCrudController::class, 'syncIptToDrive'])
+        ->name('ipt-inspection.ipt-a-drive');
     Route::get('ipt-inspection/matriz/drive', [IptInspectionCrudController::class, 'openDriveMatrices'])
         ->name('ipt-inspection.matrix-open-drive');
     Route::crud('colombia-holiday', ColombiaHolidayCrudController::class);

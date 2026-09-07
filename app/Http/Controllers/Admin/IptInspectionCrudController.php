@@ -187,6 +187,7 @@ class IptInspectionCrudController extends CrudController
         $this->crud->addButtonFromView('top', 'ipt_inspection_matrix_open_drive', 'ipt_inspection_matrix_open_drive', 'beginning');
         $this->crud->addButtonFromView('top', 'ipt_inspection_matrix_download', 'ipt_inspection_matrix_download', 'beginning');
         $this->crud->addButtonFromView('top', 'ipt_inspection_matrix_sync_drive', 'ipt_inspection_matrix_sync_drive', 'beginning');
+        $this->crud->addButtonFromView('top', 'ipt_inspection_ipt_a_drive', 'ipt_inspection_ipt_a_drive', 'beginning');
         $this->crud->addButtonFromView('top', 'ipt_inspection_create_manual', 'ipt_inspection_create_manual', 'beginning');
     }
 
@@ -402,6 +403,57 @@ class IptInspectionCrudController extends CrudController
 
         if (! empty($errors)) {
             \Alert::error('Errores en sincronización:<br>' . implode('<br>', array_map(fn ($x) => e($x), $errors)))->flash();
+        }
+
+        return back();
+    }
+
+    public function syncIptToDrive(GoogleSheetsMatrixService $service)
+    {
+        $inspections = $this->baseScopedQueryForList()
+            ->with([
+                'empleado.cliente',
+                'empleado.sucursal',
+                'programaCaso.empleado.cliente',
+                'programaCaso.empleado.sucursal',
+                'template.sections.questions',
+                'answers',
+                'requirements.requirement',
+            ])
+            ->orderBy('fecha_inspeccion', 'desc')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        if ($inspections->isEmpty()) {
+            \Alert::warning('No hay inspecciones IPT en el alcance seleccionado para enviar a Drive.')->flash();
+            return back();
+        }
+
+        $ok = 0;
+        $errors = [];
+        $links = [];
+
+        foreach ($inspections as $inspection) {
+            try {
+                $result = $service->syncIptInspectionSheet($inspection);
+                $ok++;
+                $name = (string) ($result['name'] ?? ('IPT-' . $inspection->id));
+                $links[] = $name . ': ' . ($result['spreadsheet_url'] ?? '');
+            } catch (Throwable $e) {
+                $errors[] = 'IPT #' . $inspection->id . ' → ' . $e->getMessage();
+            }
+        }
+
+        if ($ok > 0) {
+            \Alert::success("Sincronización IPT a Drive completada. Hojas actualizadas: {$ok}.")->flash();
+        }
+
+        if (! empty($links)) {
+            \Alert::info(implode('<br>', array_map(fn ($x) => e($x), $links)))->flash();
+        }
+
+        if (! empty($errors)) {
+            \Alert::error('Errores en sincronización IPT a Drive:<br>' . implode('<br>', array_map(fn ($x) => e($x), $errors)))->flash();
         }
 
         return back();
