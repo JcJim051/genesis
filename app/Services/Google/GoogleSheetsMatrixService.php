@@ -2,6 +2,7 @@
 
 namespace App\Services\Google;
 
+use App\Models\IptInspection;
 use App\Support\IntegrationSettings;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -133,6 +134,165 @@ class GoogleSheetsMatrixService
             'spreadsheet_id' => $spreadsheetId,
             'spreadsheet_url' => $spreadsheetUrl,
             'rows' => count($rows),
+        ];
+    }
+
+    public function syncIptInspectionSheet(IptInspection $inspection): array
+    {
+        $inspection->loadMissing([
+            'empleado.cliente',
+            'empleado.sucursal',
+            'programaCaso.empleado.cliente',
+            'programaCaso.empleado.sucursal',
+            'template.sections.questions',
+            'answers',
+            'requirements.requirement',
+        ]);
+
+        $rootFolderConfig = trim((string) IntegrationSettings::get('google_drive.root_folder_id', ''));
+        if ($rootFolderConfig === '') {
+            throw new RuntimeException('Falta configurar el ID de carpeta raíz de Google Drive.');
+        }
+
+        $accessToken = $this->accessToken();
+        $http = Http::withToken($accessToken)->acceptJson();
+        $rootFolderId = $this->resolveRootFolderId($http, $rootFolderConfig);
+        if ($rootFolderId === '' || mb_strlen($rootFolderId) < 10) {
+            throw new RuntimeException('No se pudo resolver un ID válido para la carpeta raíz de Drive.');
+        }
+
+        $content = $this->buildIptInspectionSheetContent($inspection);
+        $empresaFolderId = $this->ensureFolder($http, $content['empresa_nombre'], $rootFolderId);
+        $iptFolderId = $this->ensureFolder($http, 'IPT', $empresaFolderId);
+
+        $spreadsheetName = $content['spreadsheet_name'];
+        $spreadsheetId = $this->resolveIptInspectionSpreadsheetId($http, $inspection, $spreadsheetName, $iptFolderId);
+        $spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/' . $spreadsheetId . '/edit';
+
+        $this->ensureSheetTitles($http, $spreadsheetId, array_keys($content['tabs']));
+
+        foreach ($content['tabs'] as $tab => $values) {
+            $this->writeSheetValues($http, $spreadsheetId, $tab, $values);
+        }
+
+        IntegrationSettings::set('google_drive.ipt_sheet.' . $inspection->id, json_encode([
+            'spreadsheet_id' => $spreadsheetId,
+            'spreadsheet_url' => $spreadsheetUrl,
+            'folder_id' => $iptFolderId,
+            'updated_at' => now()->toDateTimeString(),
+        ]));
+
+        return [
+            'spreadsheet_id' => $spreadsheetId,
+            'spreadsheet_url' => $spreadsheetUrl,
+            'name' => $spreadsheetName,
+        ];
+    }
+
+    /**
+     * @return array{spreadsheet_name: string, empresa_nombre: string, tabs: array<string, array<int, array<int, string>>>}
+     */
+    public function buildIptInspectionSheetContent(IptInspection $inspection): array
+    {
+        $empleado = $inspection->empleado ?: $inspection->programaCaso?->empleado;
+        $persona = trim((string) ($empleado?->nombre ?? 'Sin nombre'));
+        $cedula = trim((string) ($empleado?->cedula ?? ''));
+        $empresaNombre = trim((string) ($empleado?->cliente?->nombre ?? ''));
+        if ($empresaNombre === '') {
+            $clienteId = (int) ($inspection->cliente_id ?? $empleado?->cliente_id ?? 0);
+            $empresaNombre = $clienteId > 0 ? 'Empresa_' . $clienteId : 'Empresa';
+        }
+
+        $fecha = optional($inspection->fecha_inspeccion)->format('Y-m-d') ?: '';
+        $spreadsheetName = $this->sanitizeDriveName(
+            'IPT-' . $inspection->id . ' - ' . ($persona !== '' ? $persona : 'Sin nombre') . ' - ' . ($fecha !== '' ? $fecha : 's-f')
+        );
+
+        $tipo = $inspection->tipo === 'followup' ? 'Seguimiento' : 'Inicial';
+        $plantilla = (string) ($inspection->template?->nombre_publico ?? '');
+        $personaMeta = trim($persona . ($cedula !== '' ? ' · ' . $cedula : ''));
+
+        $resumen = [];
+        $resumen[] = ['Inspección IPT #' . $inspection->id];
+        $resumen[] = ['Tipo', $tipo];
+        $resumen[] = ['Plantilla', $plantilla];
+        $resumen[] = [];
+        $resumen[] = ['Persona', $personaMeta];
+        $resumen[] = ['Fecha inspección', $fecha];
+        $resumen[] = ['Empresa', (string) ($empleado?->cliente?->nombre ?? '—')];
+        $resumen[] = ['Planta', (string) ($empleado?->sucursal?->nombre ?? '—')];
+        $resumen[] = ['Puntaje', (string) ($inspection->puntaje_total ?? 0)];
+        $resumen[] = ['Riesgo', strtoupper((string) ($inspection->nivel_riesgo ?? ''))];
+        $resumen[] = ['Próximo seguimiento', optional($inspection->fecha_proximo_seguimiento_sugerida)->format('Y-m-d') ?: '—'];
+        $resumen[] = ['Estado', ucfirst((string) ($inspection->estado ?? ''))];
+
+        $fotoModo = (string) ($inspection->template?->evidencia_fotografica_modo ?? 'none');
+        if ($fotoModo !== 'none') {
+            $resumen[] = [];
+            $resumen[] = ['Evidencia fotográfica'];
+            if ($fotoModo === 'general') {
+                $resumen[] = ['Evidencia general', $this->inspectionPhotoLink($inspection->foto_general)];
+            } else {
+                $resumen[] = ['Antes', $this->inspectionPhotoLink($inspection->foto_antes)];
+                $resumen[] = ['Después', $this->inspectionPhotoLink($inspection->foto_despues)];
+            }
+        }
+
+        $resumen[] = [];
+        $resumen[] = ['Hallazgos y plan'];
+        $resumen[] = ['Hallazgos', (string) ($inspection->hallazgos ?: '—')];
+        $resumen[] = ['Recomendaciones', (string) ($inspection->recomendaciones ?: '—')];
+        if ($inspection->template?->mostrar_accion) {
+            $resumen[] = ['Acción', (string) ($inspection->accion ?: '—')];
+        }
+        if ($inspection->template?->mostrar_responsable) {
+            $resumen[] = ['Responsable', (string) ($inspection->responsable ?: '—')];
+        }
+        $resumen[] = [];
+        $resumen[] = ['Generado por plataforma Genesis', now()->format('Y-m-d H:i:s')];
+
+        $answersByQuestion = $inspection->answers->keyBy('question_id');
+        $respuestas = [];
+        $respuestas[] = ['Respuestas'];
+        $sections = $inspection->template?->sections?->sortBy('orden') ?? collect();
+        foreach ($sections as $section) {
+            $respuestas[] = [];
+            $respuestas[] = [(string) ($section->titulo ?? '')];
+            $respuestas[] = ['Pregunta', 'Respuesta', 'Puntaje'];
+            $questions = $section->questions?->sortBy('orden') ?? collect();
+            foreach ($questions as $question) {
+                $ans = $answersByQuestion->get($question->id);
+                $respuestas[] = [
+                    (string) ($question->texto ?? ''),
+                    strtoupper((string) ($ans->respuesta ?? '')),
+                    (string) ($ans->score ?? 0),
+                ];
+            }
+        }
+
+        $requerimientos = [];
+        $requerimientos[] = ['Requerimientos de estación'];
+        $requerimientos[] = ['Requerimiento', 'Aplica'];
+        $reqs = $inspection->requirements ?? collect();
+        if ($reqs->isEmpty()) {
+            $requerimientos[] = ['Sin registros', ''];
+        } else {
+            foreach ($reqs as $req) {
+                $requerimientos[] = [
+                    (string) ($req->requirement?->nombre ?? ''),
+                    $req->aplica ? 'Sí' : 'No',
+                ];
+            }
+        }
+
+        return [
+            'spreadsheet_name' => $spreadsheetName,
+            'empresa_nombre' => $empresaNombre,
+            'tabs' => [
+                'Resumen' => $resumen,
+                'Respuestas' => $respuestas,
+                'Requerimientos' => $requerimientos,
+            ],
         ];
     }
 
@@ -321,6 +481,133 @@ class GoogleSheetsMatrixService
         }
 
         return ['id' => $id, 'name' => $name];
+    }
+
+    private function resolveIptInspectionSpreadsheetId($http, IptInspection $inspection, string $spreadsheetName, string $iptFolderId): string
+    {
+        $cfg = json_decode((string) IntegrationSettings::get('google_drive.ipt_sheet.' . $inspection->id, ''), true);
+        $storedId = trim((string) ($cfg['spreadsheet_id'] ?? ''));
+
+        if ($storedId !== '') {
+            $check = $http->get(self::DRIVE_BASE . '/files/' . urlencode($storedId), [
+                'fields' => 'id,name,trashed',
+                'supportsAllDrives' => 'true',
+            ]);
+
+            if ($check->successful() && ! $check->json('trashed')) {
+                $currentName = (string) ($check->json('name') ?? '');
+                if ($currentName !== '' && $currentName !== $spreadsheetName) {
+                    $http->patch(self::DRIVE_BASE . '/files/' . urlencode($storedId) . '?supportsAllDrives=true', [
+                        'name' => $spreadsheetName,
+                    ]);
+                }
+
+                return $storedId;
+            }
+        }
+
+        $spreadsheet = $this->ensureSpreadsheet($http, $spreadsheetName, $iptFolderId, 'Resumen');
+
+        return (string) $spreadsheet['id'];
+    }
+
+    private function ensureSheetTitles($http, string $spreadsheetId, array $wantedTitles): void
+    {
+        $meta = $http->get(self::SHEETS_BASE . '/' . $spreadsheetId);
+        if (! $meta->successful()) {
+            throw new RuntimeException('No fue posible leer el spreadsheet IPT: ' . $meta->body());
+        }
+
+        $sheets = $meta->json('sheets') ?? [];
+        $existingTitles = [];
+        foreach ($sheets as $sheet) {
+            $existingTitles[] = (string) ($sheet['properties']['title'] ?? '');
+        }
+
+        $requests = [];
+        foreach ($wantedTitles as $index => $title) {
+            if (in_array($title, $existingTitles, true)) {
+                continue;
+            }
+
+            if ($index === 0 && isset($sheets[0]['properties']['sheetId'])) {
+                $currentFirst = (string) ($sheets[0]['properties']['title'] ?? '');
+                if (! in_array($currentFirst, $wantedTitles, true)) {
+                    $requests[] = [
+                        'updateSheetProperties' => [
+                            'properties' => [
+                                'sheetId' => (int) $sheets[0]['properties']['sheetId'],
+                                'title' => $title,
+                            ],
+                            'fields' => 'title',
+                        ],
+                    ];
+                    $existingTitles[] = $title;
+                    continue;
+                }
+            }
+
+            $requests[] = [
+                'addSheet' => [
+                    'properties' => ['title' => $title],
+                ],
+            ];
+            $existingTitles[] = $title;
+        }
+
+        if ($requests === []) {
+            return;
+        }
+
+        $resp = $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . ':batchUpdate', [
+            'requests' => $requests,
+        ]);
+
+        if (! $resp->successful()) {
+            throw new RuntimeException('No fue posible preparar pestañas del spreadsheet IPT: ' . $resp->body());
+        }
+    }
+
+    private function writeSheetValues($http, string $spreadsheetId, string $tab, array $values): void
+    {
+        $clearRange = $tab . '!A1:Z50000';
+        $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($clearRange) . ':clear');
+
+        $update = $http->put(
+            self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1') . '?valueInputOption=RAW',
+            [
+                'range' => $tab . '!A1',
+                'majorDimension' => 'ROWS',
+                'values' => $values,
+            ]
+        );
+
+        if (! $update->successful()) {
+            throw new RuntimeException('No fue posible actualizar la hoja "' . $tab . '": ' . $update->body());
+        }
+    }
+
+    private function inspectionPhotoLink(?string $path): string
+    {
+        $path = trim((string) $path);
+        if ($path === '') {
+            return 'Sin evidencia';
+        }
+
+        try {
+            return url('storage/' . ltrim($path, '/'));
+        } catch (\Throwable $e) {
+            return 'Sin evidencia';
+        }
+    }
+
+    private function sanitizeDriveName(string $name): string
+    {
+        $name = preg_replace('/[\\\\\\/]+/', '-', $name) ?? $name;
+        $name = preg_replace('/[\\x00-\\x1F]+/', ' ', $name) ?? $name;
+        $name = trim(preg_replace('/\\s+/', ' ', $name) ?? $name);
+
+        return mb_substr($name !== '' ? $name : 'IPT', 0, 200);
     }
 
 }

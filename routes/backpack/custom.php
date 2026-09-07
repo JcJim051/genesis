@@ -108,6 +108,8 @@ Route::group([
         ->name('ipt-inspection.matrix-download');
     Route::post('ipt-inspection/matriz/sync-drive', [IptInspectionCrudController::class, 'syncMatrixToDrive'])
         ->name('ipt-inspection.matrix-sync-drive');
+    Route::post('ipt-inspection/ipt-a-drive', [IptInspectionCrudController::class, 'syncIptToDrive'])
+        ->name('ipt-inspection.ipt-a-drive');
     Route::get('ipt-inspection/matriz/drive', [IptInspectionCrudController::class, 'openDriveMatrices'])
         ->name('ipt-inspection.matrix-open-drive');
     Route::crud('colombia-holiday', ColombiaHolidayCrudController::class);
