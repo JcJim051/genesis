@@ -11,6 +11,7 @@ class GoogleSheetsMatrixService
 {
     private const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
     private const SHEETS_BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
+    private const SPREADSHEET_MIME = 'application/vnd.google-apps.spreadsheet';
 
     public function syncIptCompanyMatrix(int $clienteId, string $empresaNombre, array $rows, string $scopeLabel): array
     {
@@ -176,6 +177,7 @@ class GoogleSheetsMatrixService
         $resolved = $this->resolveWorkerSpreadsheet($http, $inspection, $spreadsheetName, $workerFolderId, $settingsKey);
         $spreadsheetId = $resolved['id'];
         $created = $resolved['created'];
+        $tabs = $this->resolveIptTabsFromGoogle($http, $spreadsheetId);
         $spreadsheetUrl = 'https://docs.google.com/spreadsheets/d/' . $spreadsheetId . '/edit';
 
         $isFollowup = IptDriveLayout::isFollowup($inspection);
@@ -183,10 +185,10 @@ class GoogleSheetsMatrixService
 
         if ($shouldWriteFormato) {
             $photoLinks = $this->inspectionPhotoLinks($inspection);
-            $this->writeValueRanges($http, $spreadsheetId, IptDriveLayout::formatoValueRanges($inspection, $photoLinks));
+            $this->writeValueRanges($http, $spreadsheetId, IptDriveLayout::formatoValueRanges($inspection, $photoLinks, $tabs['formato']));
         }
 
-        $this->upsertSeguimientosRow($http, $spreadsheetId, $inspection, $isFollowup && ! $created);
+        $this->upsertSeguimientosRow($http, $spreadsheetId, $inspection, $isFollowup && ! $created, $tabs['seguimientos']);
 
         $meta = json_encode([
             'spreadsheet_id' => $spreadsheetId,
@@ -435,24 +437,33 @@ class GoogleSheetsMatrixService
         $storedId = $this->storedSpreadsheetId($settingsKey, $inspection);
         if ($storedId !== '') {
             $check = $http->get(self::DRIVE_BASE . '/files/' . urlencode($storedId), [
-                'fields' => 'id,name,trashed',
+                'fields' => 'id,name,trashed,mimeType',
                 'supportsAllDrives' => 'true',
             ]);
             if ($check->successful() && ! $check->json('trashed')) {
-                $currentName = (string) ($check->json('name') ?? '');
-                if ($currentName !== '' && $currentName !== $spreadsheetName) {
-                    $http->patch(self::DRIVE_BASE . '/files/' . urlencode($storedId) . '?supportsAllDrives=true', [
-                        'name' => $spreadsheetName,
-                    ]);
+                $mime = (string) ($check->json('mimeType') ?? '');
+                if ($mime === self::SPREADSHEET_MIME && $this->spreadsheetHasIptTabs($http, $storedId)) {
+                    $currentName = (string) ($check->json('name') ?? '');
+                    if ($currentName !== '' && $currentName !== $spreadsheetName) {
+                        $http->patch(self::DRIVE_BASE . '/files/' . urlencode($storedId) . '?supportsAllDrives=true', [
+                            'name' => $spreadsheetName,
+                        ]);
+                    }
+
+                    return ['id' => $storedId, 'created' => false];
                 }
 
-                return ['id' => $storedId, 'created' => false];
+                $this->trashStaleSpreadsheet($http, $storedId);
             }
         }
 
         $existing = $this->findSpreadsheetInFolder($http, $spreadsheetName, $workerFolderId);
         if ($existing !== '') {
-            return ['id' => $existing, 'created' => false];
+            if ($this->spreadsheetHasIptTabs($http, $existing)) {
+                return ['id' => $existing, 'created' => false];
+            }
+
+            $this->trashStaleSpreadsheet($http, $existing);
         }
 
         return [
@@ -504,8 +515,9 @@ class GoogleSheetsMatrixService
             throw new RuntimeException('Falta el ID de la plantilla IPT de Google Sheets.');
         }
 
-        $copy = $http->post(self::DRIVE_BASE . '/files/' . urlencode($templateId) . '/copy?supportsAllDrives=true&fields=id,parents', [
+        $copy = $http->post(self::DRIVE_BASE . '/files/' . urlencode($templateId) . '/copy?supportsAllDrives=true&fields=id,parents,mimeType', [
             'name' => $name,
+            'mimeType' => self::SPREADSHEET_MIME,
             'parents' => [$parentId],
         ]);
 
@@ -520,7 +532,51 @@ class GoogleSheetsMatrixService
             throw new RuntimeException('Google Drive no devolvió ID al copiar la plantilla IPT.');
         }
 
-        $parents = $copy->json('parents') ?? [];
+        return $this->ensureCopiedFileIsSpreadsheet($http, $id, $name, $parentId);
+    }
+
+    /**
+     * Verify the copy is a native Google Sheet; convert/re-copy if the template was xlsx.
+     */
+    private function ensureCopiedFileIsSpreadsheet($http, string $id, string $name, string $parentId): string
+    {
+        $meta = $this->driveFileMeta($http, $id, 'id,mimeType,parents,name');
+        $mime = (string) ($meta['mimeType'] ?? '');
+
+        if ($mime !== self::SPREADSHEET_MIME) {
+            $convert = $http->post(self::DRIVE_BASE . '/files/' . urlencode($id) . '/copy?supportsAllDrives=true&fields=id,mimeType,parents', [
+                'name' => $name,
+                'mimeType' => self::SPREADSHEET_MIME,
+                'parents' => [$parentId],
+            ]);
+
+            $convertedId = (string) ($convert->json('id') ?? '');
+            if (! $convert->successful() || $convertedId === '') {
+                throw new RuntimeException(
+                    'La copia de la plantilla IPT no es un Google Sheet nativo (mimeType='
+                    . ($mime !== '' ? $mime : 'desconocido')
+                    . ') y no se pudo convertir. Convierte el archivo plantilla a Google Sheets '
+                    . '(Archivo > Guardar como Google Sheets) o configura el ID de un spreadsheet nativo. Detalle: '
+                    . $convert->body()
+                );
+            }
+
+            $this->trashStaleSpreadsheet($http, $id);
+            $id = $convertedId;
+            $meta = $this->driveFileMeta($http, $id, 'id,mimeType,parents,name');
+            $mime = (string) ($meta['mimeType'] ?? '');
+        }
+
+        if ($mime !== self::SPREADSHEET_MIME) {
+            throw new RuntimeException(
+                'La copia de la plantilla IPT no es un Google Sheet nativo (mimeType='
+                . ($mime !== '' ? $mime : 'desconocido')
+                . '). Convierte el archivo plantilla a Google Sheets '
+                . '(Archivo > Guardar como Google Sheets) o configura el ID de un spreadsheet nativo.'
+            );
+        }
+
+        $parents = $meta['parents'] ?? [];
         if (! is_array($parents) || ! in_array($parentId, $parents, true)) {
             $query = 'supportsAllDrives=true&addParents=' . urlencode($parentId);
             if (is_array($parents) && $parents !== []) {
@@ -533,6 +589,65 @@ class GoogleSheetsMatrixService
         }
 
         return $id;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function driveFileMeta($http, string $fileId, string $fields): array
+    {
+        $resp = $http->get(self::DRIVE_BASE . '/files/' . urlencode($fileId), [
+            'fields' => $fields,
+            'supportsAllDrives' => 'true',
+        ]);
+        if (! $resp->successful()) {
+            throw new RuntimeException('No fue posible leer el archivo IPT en Drive: ' . $resp->body());
+        }
+
+        return $resp->json() ?? [];
+    }
+
+    private function trashStaleSpreadsheet($http, string $fileId): void
+    {
+        $http->patch(self::DRIVE_BASE . '/files/' . urlencode($fileId) . '?supportsAllDrives=true', [
+            'trashed' => true,
+        ]);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fetchSpreadsheetSheetTitles($http, string $spreadsheetId): array
+    {
+        $meta = $http->get(self::SHEETS_BASE . '/' . $spreadsheetId, [
+            'fields' => 'sheets.properties(sheetId,title),spreadsheetId',
+        ]);
+        if (! $meta->successful()) {
+            throw new RuntimeException(
+                'No fue posible leer las pestañas del spreadsheet IPT (id=' . $spreadsheetId . '): ' . $meta->body()
+            );
+        }
+
+        return IptDriveLayout::titlesFromSpreadsheetMeta($meta->json() ?? []);
+    }
+
+    /**
+     * @return array{formato: string, seguimientos: string}
+     */
+    private function resolveIptTabsFromGoogle($http, string $spreadsheetId): array
+    {
+        return IptDriveLayout::resolveIptTabTitles($this->fetchSpreadsheetSheetTitles($http, $spreadsheetId));
+    }
+
+    private function spreadsheetHasIptTabs($http, string $spreadsheetId): bool
+    {
+        try {
+            $this->resolveIptTabsFromGoogle($http, $spreadsheetId);
+
+            return true;
+        } catch (RuntimeException $e) {
+            return false;
+        }
     }
 
     /**
@@ -554,9 +669,11 @@ class GoogleSheetsMatrixService
         }
     }
 
-    private function upsertSeguimientosRow($http, string $spreadsheetId, IptInspection $inspection, bool $append): void
+    private function upsertSeguimientosRow($http, string $spreadsheetId, IptInspection $inspection, bool $append, ?string $seguimientosTab = null): void
     {
-        $tab = IptDriveLayout::SEGUIMIENTOS_TAB;
+        $tab = ($seguimientosTab !== null && $seguimientosTab !== '')
+            ? $seguimientosTab
+            : IptDriveLayout::SEGUIMIENTOS_TAB;
         $read = $http->get(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode(IptDriveLayout::a1($tab, 'A1:L500')));
         $rows = $read->successful() ? ($read->json('values') ?? []) : [];
         if ($rows === []) {

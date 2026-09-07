@@ -91,6 +91,16 @@ class IptInspectionSheetContentTest extends TestCase
         }
     }
 
+    public function test_formato_value_ranges_use_resolved_real_tab_title(): void
+    {
+        $realTitle = "Formato\u{00A0}Ipt";
+        $ranges = IptDriveLayout::formatoValueRanges($this->makeInspection(), [], $realTitle);
+
+        $this->assertNotEmpty($ranges);
+        $this->assertSame(IptDriveLayout::a1($realTitle, 'B2'), $ranges[0]['range']);
+        $this->assertStringNotContainsString("'FORMATO IPT'!", json_encode($ranges));
+    }
+
     public function test_worker_and_folder_names_strip_path_separators(): void
     {
         $inspection = $this->makeInspection();

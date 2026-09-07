@@ -121,6 +121,7 @@ class IptDriveLayoutTest extends TestCase
         $this->assertSame("'Matriz IPT'!A1", IptDriveLayout::a1('Matriz IPT', 'A1'));
         $this->assertSame('B2', IptDriveLayout::cellFromA1Range("'FORMATO IPT'!B2"));
         $this->assertSame('A1:L500', IptDriveLayout::cellFromA1Range('SEGUIMIENTOS!A1:L500'));
+        $this->assertSame("'Formato Ipt 2024'!B2", IptDriveLayout::a1('Formato Ipt 2024', 'B2'));
     }
 
     private function inspection(string $empresa, string $trabajador, string $fecha): IptInspection

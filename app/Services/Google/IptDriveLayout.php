@@ -7,6 +7,7 @@ use App\Models\IptInspection;
 use App\Models\User;
 use Carbon\Carbon;
 use DateTimeInterface;
+use RuntimeException;
 
 /**
  * Maps IPT inspections onto the team's Excel/Drive template
@@ -248,20 +249,156 @@ class IptDriveLayout
     }
 
     /**
+     * Normalize a Google sheet title for matching.
+     *
+     * Trims, replaces NBSP / other invisible spaces, and collapses whitespace.
+     * Does not change case; callers compare case-insensitively.
+     */
+    public static function normalizeSheetTitle(string $title): string
+    {
+        $title = str_replace(
+            ["\u{00A0}", "\u{2007}", "\u{202F}", "\u{FEFF}", "\u{200B}", "\u{200C}", "\u{200D}"],
+            ' ',
+            $title
+        );
+        $title = trim($title);
+
+        return trim(preg_replace('/\s+/u', ' ', $title) ?? $title);
+    }
+
+    /**
+     * @param  list<string>|array<int, array{properties?: array{title?: mixed}}>  $sheetsOrTitles
+     * @return list<string>
+     */
+    public static function titlesFromSpreadsheetMeta(array $sheetsOrTitles): array
+    {
+        if (isset($sheetsOrTitles['sheets']) && is_array($sheetsOrTitles['sheets'])) {
+            $sheetsOrTitles = $sheetsOrTitles['sheets'];
+        }
+
+        $titles = [];
+        foreach ($sheetsOrTitles as $item) {
+            if (is_string($item)) {
+                $title = $item;
+            } else {
+                $title = (string) ($item['properties']['title'] ?? $item['title'] ?? '');
+            }
+            if ($title !== '') {
+                $titles[] = $title;
+            }
+        }
+
+        return $titles;
+    }
+
+    /**
+     * Return the real sheet title from Google that matches a preferred name.
+     *
+     * Prefers an exact match after normalize + case-insensitive compare.
+     * Otherwise a unique contains-match on every needle (also normalized).
+     * Returns the original Google title (byte-for-byte), not the preferred constant.
+     *
+     * @param  list<string>  $titles
+     * @param  list<string>  $mustContain
+     */
+    public static function matchSheetTitle(array $titles, string $preferred, array $mustContain = []): ?string
+    {
+        $normalizedPreferred = mb_strtolower(self::normalizeSheetTitle($preferred), 'UTF-8');
+
+        $normalized = [];
+        foreach ($titles as $title) {
+            if (! is_string($title) || $title === '') {
+                continue;
+            }
+            $normalized[] = [
+                'raw' => $title,
+                'norm' => mb_strtolower(self::normalizeSheetTitle($title), 'UTF-8'),
+            ];
+        }
+
+        $exact = [];
+        foreach ($normalized as $item) {
+            if ($item['norm'] === $normalizedPreferred) {
+                $exact[] = $item['raw'];
+            }
+        }
+        if ($exact !== []) {
+            return $exact[0];
+        }
+
+        $needles = [];
+        foreach ($mustContain as $needle) {
+            $needle = mb_strtolower(self::normalizeSheetTitle((string) $needle), 'UTF-8');
+            if ($needle !== '') {
+                $needles[] = $needle;
+            }
+        }
+        if ($needles === []) {
+            return null;
+        }
+
+        $contains = [];
+        foreach ($normalized as $item) {
+            foreach ($needles as $needle) {
+                if (! str_contains($item['norm'], $needle)) {
+                    continue 2;
+                }
+            }
+            $contains[] = $item['raw'];
+        }
+
+        return count($contains) === 1 ? $contains[0] : null;
+    }
+
+    /**
+     * Resolve the real FORMATO IPT and SEGUIMIENTOS tab titles from Google.
+     *
+     * Constants remain the preferred names; the returned strings are the
+     * actual titles in the spreadsheet (spaces, NBSP, casing, etc.).
+     *
+     * @param  list<string>|array<string, mixed>  $titlesOrMeta
+     * @return array{formato: string, seguimientos: string}
+     */
+    public static function resolveIptTabTitles(array $titlesOrMeta): array
+    {
+        $titles = self::titlesFromSpreadsheetMeta($titlesOrMeta);
+        $formato = self::matchSheetTitle($titles, self::FORMATO_TAB, ['FORMATO', 'IPT']);
+        $seguimientos = self::matchSheetTitle($titles, self::SEGUIMIENTOS_TAB, ['SEGUIMIENTO']);
+
+        if ($formato === null || $seguimientos === null) {
+            $listed = $titles === []
+                ? '(ninguna)'
+                : implode(', ', array_map(static fn (string $title): string => '"' . $title . '"', $titles));
+
+            throw new RuntimeException(
+                'La hoja de cálculo IPT no tiene las pestañas requeridas ('
+                . self::FORMATO_TAB . ' y ' . self::SEGUIMIENTOS_TAB
+                . '). Pestañas encontradas: ' . $listed . '.'
+            );
+        }
+
+        return [
+            'formato' => $formato,
+            'seguimientos' => $seguimientos,
+        ];
+    }
+
+    /**
      * Sheets API value ranges for FORMATO IPT (does not rewrite labels).
      *
      * @param  array{inicial?: string, despues?: string}  $photoLinks
      * @return list<array{range: string, values: array<int, array<int, mixed>>}>
      */
-    public static function formatoValueRanges(IptInspection $inspection, array $photoLinks = []): array
+    public static function formatoValueRanges(IptInspection $inspection, array $photoLinks = [], ?string $formatoTab = null): array
     {
+        $tab = ($formatoTab !== null && $formatoTab !== '') ? $formatoTab : self::FORMATO_TAB;
         $empleado = self::empleado($inspection);
         $fecha = self::asCarbon($inspection->fecha_inspeccion);
         $ranges = [];
 
-        $push = function (string $cell, mixed $value) use (&$ranges) {
+        $push = function (string $cell, mixed $value) use (&$ranges, $tab) {
             $ranges[] = [
-                'range' => self::a1(self::FORMATO_TAB, $cell),
+                'range' => self::a1($tab, $cell),
                 'values' => [[$value]],
             ];
         };

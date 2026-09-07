@@ -51,6 +51,13 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString('FORMATO IPT', $service);
         $this->assertStringContainsString('SEGUIMIENTOS', $service);
         $this->assertStringContainsString('IptDriveLayout::a1(', $service);
+        $this->assertStringContainsString('resolveIptTabsFromGoogle', $service);
+        $this->assertStringContainsString('spreadsheetHasIptTabs', $service);
+        $this->assertStringContainsString('ensureCopiedFileIsSpreadsheet', $service);
+        $this->assertStringContainsString("sheets.properties(sheetId,title),spreadsheetId", $service);
+        $this->assertStringContainsString("application/vnd.google-apps.spreadsheet", $service);
+        $this->assertStringContainsString("'mimeType' => self::SPREADSHEET_MIME", $service);
+        $this->assertStringContainsString('trashStaleSpreadsheet', $service);
         $this->assertStringNotContainsString("\$tab . '!A1:L500'", $service);
         $this->assertStringNotContainsString("\$tab . '!A' . \$rowNumber", $service);
         $this->assertStringNotContainsString("'Resumen'", $service);
@@ -64,7 +71,10 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString("google_drive.ipt_worker_sheet.", $layout);
         $this->assertStringContainsString('function a1', $layout);
         $this->assertStringContainsString('function quoteSheetName', $layout);
-        $this->assertStringContainsString('self::a1(self::FORMATO_TAB, $cell)', $layout);
+        $this->assertStringContainsString('function normalizeSheetTitle', $layout);
+        $this->assertStringContainsString('function matchSheetTitle', $layout);
+        $this->assertStringContainsString('function resolveIptTabTitles', $layout);
+        $this->assertStringContainsString('self::a1($tab, $cell)', $layout);
         $this->assertStringNotContainsString("self::FORMATO_TAB . '!' . \$cell", $layout);
     }
 }
