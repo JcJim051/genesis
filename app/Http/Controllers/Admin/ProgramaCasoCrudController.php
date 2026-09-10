@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\FetchesEmpleadosAjax;
 use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\Empleado;
 use App\Models\Programa;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 class ProgramaCasoCrudController extends CrudController
 {
     use TenantScope;
+    use FetchesEmpleadosAjax;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; edit as traitEdit; }
@@ -213,22 +215,10 @@ class ProgramaCasoCrudController extends CrudController
 
     protected function setupCreateOperation(): void
     {
-        CRUD::addField([
-            'name' => 'empleado_id',
-            'label' => 'Persona',
-            'type' => 'select2_from_ajax',
-            'entity' => 'empleado',
-            'model' => Empleado::class,
-            'attribute' => 'nombre',
-            'data_source' => backpack_url('programa-caso/fetch/empleado'),
-            'placeholder' => 'Buscar persona por nombre o cédula...',
-            'minimum_input_length' => 1,
-            'hint' => 'Escribe el nombre o la cédula para buscar. Se respetan las empresas/plantas de tu vista actual.',
-            'allows_null' => true,
-        ]);
+        CRUD::addField($this->empleadoSelect2AjaxField(backpack_url('programa-caso/fetch/empleado')));
 
         CRUD::field('programa_id')
-            ->type('select')
+            ->type('select2')
             ->label('Programa')
             ->entity('programa')
             ->model(Programa::class)
@@ -249,7 +239,7 @@ class ProgramaCasoCrudController extends CrudController
         $this->setupCreateOperation();
     }
 
-    public function fetchEmpleado(Request $request)
+    protected function authorizeEmpleadoAjaxFetch(): void
     {
         if (! backpack_user()) {
             abort(403);
@@ -258,31 +248,6 @@ class ProgramaCasoCrudController extends CrudController
         if (! $this->crud->hasAccess('create') && ! $this->crud->hasAccess('update')) {
             abort(403);
         }
-
-        $term = trim((string) $request->query('q', ''));
-        $page = max(1, (int) $request->query('page', 1));
-        $perPage = 20;
-
-        $query = $this->scopedEmpleadosQuery();
-
-        if ($term !== '') {
-            $query->where(function ($q) use ($term) {
-                $q->where('nombre', 'like', '%' . $term . '%')
-                    ->orWhere('cedula', 'like', '%' . $term . '%');
-            });
-        }
-
-        $paginator = $query->orderBy('nombre')->paginate($perPage, ['*'], 'page', $page);
-
-        return response()->json([
-            'results' => $paginator->getCollection()->map(fn (Empleado $empleado) => [
-                'id' => $empleado->id,
-                'text' => $empleado->selectLabel(),
-            ])->values(),
-            'pagination' => [
-                'more' => $paginator->hasMorePages(),
-            ],
-        ]);
     }
 
     protected function setupShowOperation(): void
@@ -511,17 +476,6 @@ class ProgramaCasoCrudController extends CrudController
         }
 
         $this->crud->addClause('whereRaw', '1 = 0');
-    }
-
-    private function scopedEmpleadosQuery()
-    {
-        $query = Empleado::query();
-
-        if (! TenantSelection::isAdminBypass()) {
-            $this->applyScopeByFields($query, 'cliente_id', 'sucursal_id');
-        }
-
-        return $query;
     }
 
     private function scopedEmpleadoIds()

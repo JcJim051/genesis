@@ -50,13 +50,9 @@ class DiagnosticoProgramaMapCrudController extends CrudController
             'name' => 'cie10_id',
             'type' => 'cie10_select',
             'label' => 'CIE10',
-            'options' => Cie10::query()
-                ->orderBy('codigo')
-                ->get()
-                ->mapWithKeys(function ($row) {
-                    return [$row->id => $row->codigo . ' - ' . $row->diagnostico];
-                })
-                ->toArray(),
+            'model' => Cie10::class,
+            'data_source' => backpack_url('cie10/fetch'),
+            'placeholder' => 'Buscar CIE10 por código o diagnóstico...',
             'lookup_url' => backpack_url('cie10/__ID__/lookup'),
             'target_codigo' => 'codigo_cie10',
             'target_diagnostico' => 'diagnostico_texto',
@@ -71,7 +67,7 @@ class DiagnosticoProgramaMapCrudController extends CrudController
         CRUD::field('codigo_cie10')->type('text')->label('CIE10 (manual)')->wrapper(['class' => 'col-md-4']);
         CRUD::field('diagnostico_texto')->type('text')->label('Diagnóstico')->wrapper(['class' => 'col-md-4']);
         CRUD::field('programa_id')
-            ->type('select')
+            ->type('select2')
             ->label('Programa')
             ->entity('programa')
             ->model(Programa::class)

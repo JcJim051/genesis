@@ -66,7 +66,7 @@
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Empresa (alcance)</label>
-                        <select class="form-control" name="cliente_id">
+                        <select class="form-control js-select2-searchable" name="cliente_id">
                             <option value="">Todas</option>
                             @foreach ($clientes as $cliente)
                                 <option value="{{ $cliente->id }}" @selected(old('cliente_id', $pausa->cliente_id) == $cliente->id)>{{ $cliente->nombre }}</option>
@@ -75,7 +75,7 @@
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">Planta (alcance)</label>
-                        <select class="form-control" name="sucursal_id">
+                        <select class="form-control js-select2-searchable" name="sucursal_id">
                             <option value="">Todas</option>
                             @foreach ($sucursales as $sucursal)
                                 <option value="{{ $sucursal->id }}" @selected(old('sucursal_id', $pausa->sucursal_id) == $sucursal->id)>{{ $sucursal->nombre }}</option>
@@ -178,8 +178,14 @@
 </template>
 
 @push('after_scripts')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 (() => {
+    if (window.jQuery && jQuery.fn.select2) {
+        jQuery('.js-select2-searchable').select2({ width: '100%', allowClear: true, placeholder: 'Todas' });
+    }
+
     const data = @json($questions);
     const container = document.getElementById('questions-container');
     const qTpl = document.getElementById('question-template');

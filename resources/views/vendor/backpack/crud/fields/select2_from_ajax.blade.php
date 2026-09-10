@@ -13,15 +13,21 @@
     if ($current_value !== '' && $current_value !== null && isset($field['model'])) {
         $selected_entry = $field['model']::query()->find($current_value);
         if ($selected_entry) {
-            $selected_text = method_exists($selected_entry, 'selectLabel')
-                ? $selected_entry->selectLabel()
-                : (string) $selected_entry->{$field['attribute']};
+            if (method_exists($selected_entry, 'selectLabelWithScope')) {
+                $selected_entry->loadMissing(['cliente', 'sucursal']);
+                $selected_text = $selected_entry->selectLabelWithScope();
+            } elseif (method_exists($selected_entry, 'selectLabel')) {
+                $selected_text = $selected_entry->selectLabel();
+            } else {
+                $selected_text = (string) $selected_entry->{$field['attribute']};
+            }
         }
     }
 
     $data_source = $field['data_source'] ?? '';
     $minimum_input_length = $field['minimum_input_length'] ?? 1;
     $placeholder = $field['placeholder'] ?? '';
+    $no_results = $field['language_no_results'] ?? 'No se encontraron personas';
 @endphp
 
 @include('crud::fields.inc.wrapper_start')
@@ -36,6 +42,7 @@
             data-ajax-url="{{ $data_source }}"
             data-minimum-input-length="{{ $minimum_input_length }}"
             data-placeholder="{{ $placeholder }}"
+            data-no-results="{{ $no_results }}"
             @include('crud::fields.inc.attributes', ['default_class' => 'form-control form-select'])
         >
             @if ($field['allows_null'])
@@ -93,7 +100,7 @@
                         return 'Buscando...';
                     },
                     noResults: function () {
-                        return 'No se encontraron personas';
+                        return $select.attr('data-no-results') || 'No se encontraron personas';
                     },
                     errorLoading: function () {
                         return 'No se pudieron cargar los resultados';

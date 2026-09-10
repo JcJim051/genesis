@@ -10,7 +10,7 @@
                 @csrf
                 <div class="mb-3">
                     <label class="form-label">Empresa destino</label>
-                    <select class="form-control" name="cliente_id" required>
+                    <select class="form-control js-select2-searchable" name="cliente_id" required>
                         <option value="">Seleccionar empresa</option>
                         @foreach($clientes as $cliente)
                             <option value="{{ $cliente->id }}">{{ $cliente->nombre }}</option>
@@ -36,4 +36,16 @@
     </div>
 </div>
 @endsection
+
+@push('after_scripts')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (window.jQuery && jQuery.fn.select2) {
+        jQuery('.js-select2-searchable').select2({ width: '100%', placeholder: 'Seleccionar empresa' });
+    }
+});
+</script>
+@endpush
 

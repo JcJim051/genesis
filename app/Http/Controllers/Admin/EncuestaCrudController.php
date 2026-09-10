@@ -52,7 +52,7 @@ class EncuestaCrudController extends CrudController
     {
         CRUD::field('titulo')->type('text')->label('Título');
         CRUD::field('programa_id')
-            ->type('select')
+            ->type('select2')
             ->label('Programa')
             ->entity('programa')
             ->model(Programa::class)

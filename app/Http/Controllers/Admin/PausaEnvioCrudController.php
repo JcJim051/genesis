@@ -88,14 +88,14 @@ class PausaEnvioCrudController extends CrudController
     protected function setupCreateOperation(): void
     {
         CRUD::field('pausa_id')
-            ->type('select')
+            ->type('select2')
             ->label('Pausa activa')
             ->entity('pausa')
             ->model(Pausa::class)
             ->attribute('nombre');
 
         CRUD::field('cliente_id')
-            ->type('select')
+            ->type('select2')
             ->label('Empresa')
             ->entity('cliente')
             ->model(Cliente::class)
@@ -110,7 +110,7 @@ class PausaEnvioCrudController extends CrudController
             });
 
         CRUD::field('sucursal_id')
-            ->type('select')
+            ->type('select2')
             ->label('Planta (opcional)')
             ->entity('sucursal')
             ->model(Sucursal::class)

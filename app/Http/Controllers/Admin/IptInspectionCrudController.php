@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\FetchesEmpleadosAjax;
 use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\IptInspection;
 use App\Models\IptInspectionAnswer;
@@ -33,6 +34,7 @@ use Throwable;
 class IptInspectionCrudController extends CrudController
 {
     use TenantScope;
+    use FetchesEmpleadosAjax;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
@@ -536,12 +538,6 @@ class IptInspectionCrudController extends CrudController
 
     public function createManual()
     {
-        $empleados = $this->scopedEmployeesQuery()
-            ->with(['cliente', 'sucursal'])
-            ->orderBy('nombre')
-            ->limit(500)
-            ->get();
-
         $templatePoolQuery = IptTemplate::query()
             ->where('activo', true);
 
@@ -554,7 +550,6 @@ class IptInspectionCrudController extends CrudController
             ->get(['id', 'cliente_id', 'nombre_publico', 'codigo', 'segmento']);
 
         return view('admin.ipt_inspections.create_manual', [
-            'empleados' => $empleados,
             'templatePool' => $templatePool,
         ]);
     }

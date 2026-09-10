@@ -48,7 +48,7 @@ class SucursalCrudController extends CrudController
         $this->enforceEntryScope();
 
         CRUD::field('cliente_id')
-            ->type('select')
+            ->type('select2')
             ->label('Empresa')
             ->entity('cliente')
             ->model(\App\Models\Cliente::class)

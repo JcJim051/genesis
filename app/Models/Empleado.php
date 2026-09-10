@@ -122,6 +122,15 @@ class Empleado extends Model
         ], fn ($part) => $part !== null && trim((string) $part) !== ''));
     }
 
+    public function selectLabelWithScope(): string
+    {
+        return implode(' · ', array_filter([
+            $this->selectLabel(),
+            $this->cliente?->nombre,
+            $this->sucursal?->nombre,
+        ], fn ($part) => $part !== null && trim((string) $part) !== ''));
+    }
+
     public function getClienteNombre(): string
     {
         return (string) ($this->cliente?->nombre ?? '');

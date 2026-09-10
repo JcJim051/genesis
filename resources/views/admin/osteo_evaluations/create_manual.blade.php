@@ -1,22 +1,27 @@
 @extends(backpack_view('blank'))
 
+@push('after_styles')
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+@endpush
+
 @section('content')
 <div class="row">
     <div class="col-lg-8 col-xl-7">
         <div class="card p-4">
             <h4 class="mb-3">Nueva Valoración Osteomuscular</h4>
+            <p class="text-muted mb-3">Selecciona la persona. Se respetan las empresas/plantas de tu vista actual.</p>
             <form method="POST" action="{{ backpack_url('osteo-evaluation/create-manual') }}">
                 @csrf
                 <div class="mb-3">
-                    <label class="form-label">Persona</label>
-                    <select class="form-control" name="empleado_id" required>
-                        <option value="">Selecciona persona</option>
-                        @foreach($empleados as $empleado)
-                            <option value="{{ $empleado->id }}">
-                                {{ $empleado->nombre }} · {{ $empleado->cedula }} · {{ $empleado->cliente?->nombre ?? 'SIN EMPRESA' }}{{ $empleado->sucursal?->nombre ? (' / ' . $empleado->sucursal->nombre) : '' }}
-                            </option>
-                        @endforeach
-                    </select>
+                    @include('admin.partials.empleado_select2_ajax', [
+                        'name' => 'empleado_id',
+                        'required' => true,
+                        'ajaxUrl' => backpack_url('osteo-evaluation/fetch/empleado'),
+                    ])
+                    <div class="form-text">Escribe el nombre o la cédula para buscar.</div>
+                    @error('empleado_id')
+                        <div class="text-danger mt-1">{{ $message }}</div>
+                    @enderror
                 </div>
                 <div class="d-flex gap-2">
                     <button class="btn btn-primary" type="submit">Continuar</button>
@@ -28,3 +33,6 @@
 </div>
 @endsection
 
+@push('after_scripts')
+    @include('admin.partials.empleado_select2_ajax_assets')
+@endpush

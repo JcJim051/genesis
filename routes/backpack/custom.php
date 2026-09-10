@@ -69,10 +69,12 @@ Route::group([
     Route::post('empleado/import', [EmpleadoCrudController::class, 'import']);
     Route::get('empleado/template', [EmpleadoCrudController::class, 'template']);
     Route::crud('empleado-cargo', EmpleadoCargoCrudController::class);
+    Route::get('empleado-cargo/fetch/empleado', [EmpleadoCargoCrudController::class, 'fetchEmpleado']);
     Route::get('empleado-cargo/import', [EmpleadoCargoCrudController::class, 'importForm']);
     Route::post('empleado-cargo/import', [EmpleadoCargoCrudController::class, 'import']);
     Route::get('empleado-cargo/template', [EmpleadoCargoCrudController::class, 'template']);
     Route::crud('empleado-area', EmpleadoAreaCrudController::class);
+    Route::get('empleado-area/fetch/empleado', [EmpleadoAreaCrudController::class, 'fetchEmpleado']);
     Route::crud('programa', ProgramaCrudController::class);
     Route::crud('cie10', Cie10CrudController::class);
     Route::get('cie10/import', [Cie10CrudController::class, 'importForm']);
@@ -95,6 +97,7 @@ Route::group([
     Route::get('ipt-template/{id}/builder', [IptTemplateCrudController::class, 'builder'])->whereNumber('id');
     Route::post('ipt-template/{id}/builder', [IptTemplateCrudController::class, 'builderSave'])->whereNumber('id');
     Route::crud('ipt-inspection', IptInspectionCrudController::class);
+    Route::get('ipt-inspection/fetch/empleado', [IptInspectionCrudController::class, 'fetchEmpleado']);
     Route::get('ipt-inspection/create-manual', [IptInspectionCrudController::class, 'createManual'])
         ->name('ipt-inspection.create-manual');
     Route::post('ipt-inspection/create-manual', [IptInspectionCrudController::class, 'storeManual'])
@@ -125,6 +128,7 @@ Route::group([
     Route::get('osteo-template/{id}/builder', [OsteoTemplateCrudController::class, 'builder'])->whereNumber('id');
     Route::post('osteo-template/{id}/builder', [OsteoTemplateCrudController::class, 'builderSave'])->whereNumber('id');
     Route::crud('osteo-evaluation', OsteoEvaluationCrudController::class);
+    Route::get('osteo-evaluation/fetch/empleado', [OsteoEvaluationCrudController::class, 'fetchEmpleado']);
     Route::get('osteo-evaluation/create-manual', [OsteoEvaluationCrudController::class, 'createManual'])->name('osteo-evaluation.create-manual');
     Route::post('osteo-evaluation/create-manual', [OsteoEvaluationCrudController::class, 'storeManual'])->name('osteo-evaluation.store-manual');
     Route::get('programa-caso/{id}/osteo-evaluation/create', [OsteoEvaluationCrudController::class, 'createForCase'])->whereNumber('id');
@@ -173,6 +177,7 @@ Route::group([
     Route::crud('acta-seguimiento', ActaSeguimientoCrudController::class);
     Route::get('acta-ingreso/{id}/pdf', [ActaIngresoCrudController::class, 'pdf'])->whereNumber('id');
     Route::get('acta-seguimiento/{id}/pdf', [ActaSeguimientoCrudController::class, 'pdf'])->whereNumber('id');
+    Route::get('cie10/fetch', [Cie10LookupController::class, 'fetch']);
     Route::get('cie10/{id}/lookup', [Cie10LookupController::class, 'show'])->whereNumber('id');
 });
 

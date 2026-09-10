@@ -88,7 +88,7 @@ class EmpleadoCrudController extends CrudController
 
         CRUD::addField([
             'name' => 'cliente_id',
-            'type' => 'select',
+            'type' => 'select2',
             'label' => 'Empresa',
             'entity' => 'cliente',
             'model' => \App\Models\Cliente::class,
@@ -109,7 +109,7 @@ class EmpleadoCrudController extends CrudController
 
         CRUD::addField([
             'name' => 'sucursal_id',
-            'type' => 'select',
+            'type' => 'select2',
             'label' => 'Planta',
             'entity' => 'sucursal',
             'model' => \App\Models\Sucursal::class,
