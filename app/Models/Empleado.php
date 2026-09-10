@@ -114,6 +114,14 @@ class Empleado extends Model
         return url('/a/' . $link->token);
     }
 
+    public function selectLabel(): string
+    {
+        return implode(' · ', array_filter([
+            $this->nombre,
+            $this->cedula,
+        ], fn ($part) => $part !== null && trim((string) $part) !== ''));
+    }
+
     public function getClienteNombre(): string
     {
         return (string) ($this->cliente?->nombre ?? '');

@@ -78,6 +78,7 @@ Route::group([
     Route::get('cie10/import', [Cie10CrudController::class, 'importForm']);
     Route::post('cie10/import', [Cie10CrudController::class, 'import']);
     Route::crud('programa-caso', ProgramaCasoCrudController::class);
+    Route::get('programa-caso/fetch/empleado', [ProgramaCasoCrudController::class, 'fetchEmpleado']);
     Route::post('programa-caso/{id}/accept', [ProgramaCasoCrudController::class, 'accept']);
     Route::post('programa-caso/{id}/probable', [ProgramaCasoCrudController::class, 'probable']);
     Route::post('programa-caso/{id}/reject', [ProgramaCasoCrudController::class, 'reject']);
