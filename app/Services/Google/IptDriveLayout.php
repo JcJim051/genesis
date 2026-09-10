@@ -184,6 +184,194 @@ class IptDriveLayout
         return self::workerDisplayName($inspection);
     }
 
+    /**
+     * Drive folder URL that opens the real location (not a guessed path).
+     */
+    public static function folderUrl(string $folderId): string
+    {
+        $folderId = self::sanitizeDriveFileId($folderId);
+
+        return $folderId === '' ? '' : 'https://drive.google.com/drive/folders/' . $folderId;
+    }
+
+    public static function spreadsheetEditUrl(string $spreadsheetId): string
+    {
+        $spreadsheetId = self::sanitizeDriveFileId($spreadsheetId);
+
+        return $spreadsheetId === '' ? '' : 'https://docs.google.com/spreadsheets/d/' . $spreadsheetId . '/edit';
+    }
+
+    /**
+     * Keep only File resource fields for Drive files.create / files.copy JSON bodies.
+     * Query flags such as supportsAllDrives must never be sent as metadata.
+     *
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>
+     */
+    public static function driveFileMetadata(array $metadata): array
+    {
+        unset(
+            $metadata['supportsAllDrives'],
+            $metadata['includeItemsFromAllDrives'],
+            $metadata['corpora'],
+            $metadata['fields'],
+            $metadata['addParents'],
+            $metadata['removeParents']
+        );
+
+        return $metadata;
+    }
+
+    /**
+     * Query string for Drive write calls (create / copy / update / get-by-id).
+     *
+     * @param  array<string, scalar>  $extra
+     */
+    public static function driveWriteQuery(array $extra = []): string
+    {
+        return http_build_query(array_merge([
+            'supportsAllDrives' => 'true',
+        ], $extra));
+    }
+
+    /**
+     * Query params for Drive files.list so Shared Drives are visible.
+     *
+     * @param  array<string, scalar>  $extra
+     * @return array<string, scalar>
+     */
+    public static function driveListQueryParams(array $extra = []): array
+    {
+        return array_merge([
+            'supportsAllDrives' => 'true',
+            'includeItemsFromAllDrives' => 'true',
+            'corpora' => 'allDrives',
+        ], $extra);
+    }
+
+    /**
+     * @param  mixed  $parents
+     */
+    public static function parentsInclude(mixed $parents, string $parentId): bool
+    {
+        $parentId = trim($parentId);
+        if ($parentId === '' || ! is_array($parents)) {
+            return false;
+        }
+
+        foreach ($parents as $parent) {
+            if ((string) $parent === $parentId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Payload returned after a verified IPT → Drive sync.
+     *
+     * @return array{
+     *     spreadsheet_id: string,
+     *     spreadsheet_url: string,
+     *     folder_id: string,
+     *     folder_url: string,
+     *     name: string,
+     *     path: string,
+     *     root_folder_id: string,
+     *     root_folder_name: string,
+     *     oauth_email: string
+     * }
+     */
+    public static function iptSyncSuccessPayload(
+        string $spreadsheetId,
+        string $spreadsheetName,
+        string $path,
+        string $workerFolderId,
+        string $rootFolderId,
+        string $rootFolderName,
+        string $oauthEmail
+    ): array {
+        return [
+            'spreadsheet_id' => $spreadsheetId,
+            'spreadsheet_url' => self::spreadsheetEditUrl($spreadsheetId),
+            'folder_id' => $workerFolderId,
+            'folder_url' => self::folderUrl($workerFolderId),
+            'name' => $spreadsheetName,
+            'path' => $path,
+            'root_folder_id' => $rootFolderId,
+            'root_folder_name' => $rootFolderName,
+            'oauth_email' => $oauthEmail,
+        ];
+    }
+
+    /**
+     * HTML flash line: display path, clickable folder + sheet URLs, OAuth/root hint.
+     *
+     * @param  array<string, mixed>  $result
+     */
+    public static function formatIptSyncSuccessHtml(array $result): string
+    {
+        $path = self::escape((string) ($result['path'] ?? ''));
+        $name = self::escape((string) ($result['name'] ?? ''));
+        $folderUrl = (string) ($result['folder_url'] ?? '');
+        $sheetUrl = (string) ($result['spreadsheet_url'] ?? '');
+        $oauth = self::escape((string) ($result['oauth_email'] ?? ''));
+        $rootName = self::escape((string) ($result['root_folder_name'] ?? ''));
+        $rootId = self::escape((string) ($result['root_folder_id'] ?? ''));
+
+        $title = trim($path, ' /');
+        if ($name !== '') {
+            $title = $title !== '' ? $title . ' / ' . $name : $name;
+        }
+
+        $parts = [];
+        if ($title !== '') {
+            $parts[] = '<strong>' . $title . '</strong>';
+        }
+        if (self::isSafeGoogleUrl($folderUrl)) {
+            $parts[] = '<a href="' . self::escape($folderUrl) . '" target="_blank" rel="noopener noreferrer">Abrir carpeta en Drive</a>';
+        }
+        if (self::isSafeGoogleUrl($sheetUrl)) {
+            $parts[] = '<a href="' . self::escape($sheetUrl) . '" target="_blank" rel="noopener noreferrer">Abrir hoja</a>';
+        }
+
+        $html = implode(' — ', $parts);
+
+        $location = [];
+        if ($oauth !== '') {
+            $location[] = 'cuenta Google: ' . $oauth;
+        }
+        if ($rootName !== '') {
+            $location[] = 'carpeta raíz: «' . $rootName . '»';
+        } elseif ($rootId !== '') {
+            $location[] = 'carpeta raíz id: ' . $rootId;
+        }
+
+        if ($location !== []) {
+            $html .= '<br><small>Busca aquí: ' . implode(' · ', $location) . '</small>';
+        }
+
+        return $html;
+    }
+
+    public static function sanitizeDriveFileId(string $id): string
+    {
+        $id = trim($id);
+
+        return preg_match('/^[a-zA-Z0-9_-]+$/', $id) === 1 ? $id : '';
+    }
+
+    public static function isSafeGoogleUrl(string $url): bool
+    {
+        return (bool) preg_match('#^https://(?:drive|docs)\.google\.com/#', $url);
+    }
+
+    private static function escape(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
     public static function workerSheetSettingsKey(IptInspection $inspection): string
     {
         $date = self::folderDate($inspection);

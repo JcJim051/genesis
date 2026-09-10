@@ -39,6 +39,8 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString('ipt_inspection_ipt_a_drive', $controller);
         $this->assertStringContainsString('function syncIptToDrive', $controller);
         $this->assertStringContainsString('function syncMatrixToDrive', $controller);
+        $this->assertStringContainsString('formatIptSyncSuccessHtml', $controller);
+        $this->assertStringContainsString('IptDriveLayout', $controller);
         $this->assertStringContainsString('baseScopedQueryForList', $controller);
 
         $this->assertStringContainsString('function syncIptInspectionSheet', $service);
@@ -47,6 +49,17 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString("google_drive.company_sheet.", $service);
         $this->assertStringContainsString('copyIptTemplate', $service);
         $this->assertStringContainsString('ensureGenesisFolder', $service);
+        $this->assertStringContainsString('createDriveFile', $service);
+        $this->assertStringContainsString('ensureFileHasParent', $service);
+        $this->assertStringContainsString('verifyDriveFolderChain', $service);
+        $this->assertStringContainsString('assertFileParentOrFail', $service);
+        $this->assertStringContainsString('iptSyncSuccessPayload', $service);
+        $this->assertStringContainsString('driveFileMetadata', $service);
+        $this->assertStringContainsString('driveWriteQuery', $service);
+        $this->assertStringContainsString('driveListQueryParams', $service);
+        $this->assertStringContainsString("'folder_url'", $service);
+        $this->assertStringContainsString('oauth_connected_email', $service);
+        $this->assertStringNotContainsString("'supportsAllDrives' => true", $service);
         $this->assertStringContainsString('IptDriveLayout', $service);
         $this->assertStringContainsString('FORMATO IPT', $service);
         $this->assertStringContainsString('SEGUIMIENTOS', $service);
@@ -70,6 +83,12 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString("1e6Lr0lzrctebCCr8J5PM8z27TUKVnraU", $layout);
         $this->assertStringContainsString("google_drive.ipt_worker_sheet.", $layout);
         $this->assertStringContainsString('function a1', $layout);
+        $this->assertStringContainsString('function folderUrl', $layout);
+        $this->assertStringContainsString('function iptSyncSuccessPayload', $layout);
+        $this->assertStringContainsString('function formatIptSyncSuccessHtml', $layout);
+        $this->assertStringContainsString('function driveFileMetadata', $layout);
+        $this->assertStringContainsString("'corpora' => 'allDrives'", $layout);
+        $this->assertStringContainsString('https://drive.google.com/drive/folders/', $layout);
         $this->assertStringContainsString('function quoteSheetName', $layout);
         $this->assertStringContainsString('function normalizeSheetTitle', $layout);
         $this->assertStringContainsString('function matchSheetTitle', $layout);

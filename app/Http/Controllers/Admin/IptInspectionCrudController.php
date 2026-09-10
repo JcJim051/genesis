@@ -11,6 +11,7 @@ use App\Models\Empleado;
 use App\Models\Programa;
 use App\Models\ProgramaCaso;
 use App\Services\Google\GoogleSheetsMatrixService;
+use App\Services\Google\IptDriveLayout;
 use App\Support\TenantSelection;
 use App\Support\IntegrationSettings;
 use App\Services\Ipt\BusinessDayService;
@@ -441,9 +442,7 @@ class IptInspectionCrudController extends CrudController
             try {
                 $result = $service->syncIptInspectionSheet($inspection);
                 $ok++;
-                $name = (string) ($result['name'] ?? ('IPT-' . $inspection->id));
-                $path = (string) ($result['path'] ?? '');
-                $links[] = ($path !== '' ? $path . ' / ' : '') . $name . ': ' . ($result['spreadsheet_url'] ?? '');
+                $links[] = IptDriveLayout::formatIptSyncSuccessHtml($result);
             } catch (Throwable $e) {
                 $errors[] = 'IPT #' . $inspection->id . ' → ' . $e->getMessage();
             }
@@ -454,7 +453,7 @@ class IptInspectionCrudController extends CrudController
         }
 
         if (! empty($links)) {
-            \Alert::info(implode('<br>', array_map(fn ($x) => e($x), $links)))->flash();
+            \Alert::info(implode('<br><br>', $links))->flash();
         }
 
         if (! empty($errors)) {

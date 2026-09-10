@@ -124,6 +124,107 @@ class IptDriveLayoutTest extends TestCase
         $this->assertSame("'Formato Ipt 2024'!B2", IptDriveLayout::a1('Formato Ipt 2024', 'B2'));
     }
 
+    public function test_folder_url_and_spreadsheet_url_use_verified_ids(): void
+    {
+        $folderId = '1AbCdEfGhIjK_workerFolder';
+        $sheetId = '1e6Lr0lzrctebCCr8J5PM8z27TUKVnraU';
+
+        $this->assertSame(
+            'https://drive.google.com/drive/folders/' . $folderId,
+            IptDriveLayout::folderUrl($folderId)
+        );
+        $this->assertSame(
+            'https://docs.google.com/spreadsheets/d/' . $sheetId . '/edit',
+            IptDriveLayout::spreadsheetEditUrl($sheetId)
+        );
+        $this->assertSame('', IptDriveLayout::folderUrl('https://evil.example/x'));
+        $this->assertSame('', IptDriveLayout::spreadsheetEditUrl('not an id'));
+    }
+
+    public function test_drive_query_helpers_keep_supports_all_drives_out_of_json_body(): void
+    {
+        $clean = IptDriveLayout::driveFileMetadata([
+            'name' => 'MAYO',
+            'mimeType' => 'application/vnd.google-apps.folder',
+            'parents' => ['parent123'],
+            'supportsAllDrives' => true,
+            'includeItemsFromAllDrives' => true,
+            'corpora' => 'allDrives',
+            'fields' => 'id,parents',
+            'addParents' => 'parent123',
+        ]);
+        $this->assertSame(
+            [
+                'name' => 'MAYO',
+                'mimeType' => 'application/vnd.google-apps.folder',
+                'parents' => ['parent123'],
+            ],
+            $clean
+        );
+
+        parse_str(IptDriveLayout::driveWriteQuery(['fields' => 'id,parents']), $write);
+        $this->assertSame('true', $write['supportsAllDrives']);
+        $this->assertSame('id,parents', $write['fields']);
+
+        $list = IptDriveLayout::driveListQueryParams(['q' => "name = 'Genesis'", 'pageSize' => 1]);
+        $this->assertSame('true', $list['supportsAllDrives']);
+        $this->assertSame('true', $list['includeItemsFromAllDrives']);
+        $this->assertSame('allDrives', $list['corpora']);
+        $this->assertSame("name = 'Genesis'", $list['q']);
+        $this->assertSame(1, $list['pageSize']);
+    }
+
+    public function test_parents_include_checks_worker_folder_id(): void
+    {
+        $worker = '1workerFolderIdXx';
+        $this->assertTrue(IptDriveLayout::parentsInclude([$worker, 'other'], $worker));
+        $this->assertFalse(IptDriveLayout::parentsInclude(['other'], $worker));
+        $this->assertFalse(IptDriveLayout::parentsInclude(null, $worker));
+        $this->assertFalse(IptDriveLayout::parentsInclude([], $worker));
+    }
+
+    public function test_ipt_sync_success_payload_includes_clickable_folder_url(): void
+    {
+        $workerFolderId = '1WorkerFolderIdVerified';
+        $spreadsheetId = '1SpreadsheetIdVerifiedX';
+        $payload = IptDriveLayout::iptSyncSuccessPayload(
+            $spreadsheetId,
+            'PATERNINA VIERA MAYRA ALEJANDRA',
+            'Genesis / Concremak sas / 2026 / MAYO / PATERNINA VIERA MAYRA ALEJANDRA',
+            $workerFolderId,
+            '1RootFolderIdVerifiedX',
+            'Genesis',
+            'jonathan.c.jimenez@gmail.com'
+        );
+
+        $this->assertSame('https://drive.google.com/drive/folders/' . $workerFolderId, $payload['folder_url']);
+        $this->assertSame('https://docs.google.com/spreadsheets/d/' . $spreadsheetId . '/edit', $payload['spreadsheet_url']);
+        $this->assertSame($workerFolderId, $payload['folder_id']);
+        $this->assertSame('Genesis', $payload['root_folder_name']);
+        $this->assertSame('jonathan.c.jimenez@gmail.com', $payload['oauth_email']);
+
+        $html = IptDriveLayout::formatIptSyncSuccessHtml($payload);
+        $this->assertStringContainsString('Genesis / Concremak sas / 2026 / MAYO / PATERNINA VIERA MAYRA ALEJANDRA', $html);
+        $this->assertStringContainsString('href="' . $payload['folder_url'] . '"', $html);
+        $this->assertStringContainsString('Abrir carpeta en Drive', $html);
+        $this->assertStringContainsString('href="' . $payload['spreadsheet_url'] . '"', $html);
+        $this->assertStringContainsString('Abrir hoja', $html);
+        $this->assertStringContainsString('cuenta Google: jonathan.c.jimenez@gmail.com', $html);
+        $this->assertStringContainsString('carpeta raíz: «Genesis»', $html);
+
+        $escaped = IptDriveLayout::formatIptSyncSuccessHtml([
+            'path' => 'Genesis / <script>alert(1)</script>',
+            'name' => 'X',
+            'folder_url' => 'https://evil.example/phish',
+            'spreadsheet_url' => 'https://docs.google.com/spreadsheets/d/' . $spreadsheetId . '/edit',
+            'oauth_email' => 'a@b.com',
+            'root_folder_name' => 'Root',
+        ]);
+        $this->assertStringNotContainsString('<script>', $escaped);
+        $this->assertStringNotContainsString('https://evil.example/phish', $escaped);
+        $this->assertStringContainsString('href="https://docs.google.com/spreadsheets/d/' . $spreadsheetId . '/edit"', $escaped);
+    }
+
     private function inspection(string $empresa, string $trabajador, string $fecha): IptInspection
     {
         $cliente = new Cliente(['nombre' => $empresa]);
