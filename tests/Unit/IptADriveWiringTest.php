@@ -57,7 +57,6 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString('driveFileMetadata', $service);
         $this->assertStringContainsString('driveWriteQuery', $service);
         $this->assertStringContainsString('driveListQueryParams', $service);
-        $this->assertStringContainsString("'folder_url'", $service);
         $this->assertStringContainsString('oauth_connected_email', $service);
         $this->assertStringNotContainsString("'supportsAllDrives' => true", $service);
         $this->assertStringContainsString('IptDriveLayout', $service);
@@ -86,6 +85,7 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString('function folderUrl', $layout);
         $this->assertStringContainsString('function iptSyncSuccessPayload', $layout);
         $this->assertStringContainsString('function formatIptSyncSuccessHtml', $layout);
+        $this->assertStringContainsString("'folder_url'", $layout);
         $this->assertStringContainsString('function driveFileMetadata', $layout);
         $this->assertStringContainsString("'corpora' => 'allDrives'", $layout);
         $this->assertStringContainsString('https://drive.google.com/drive/folders/', $layout);
