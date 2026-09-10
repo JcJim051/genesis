@@ -70,10 +70,11 @@
                     </div>
                 @endif
 
+                @if(\App\Services\Ipt\IptFormLayout::hasVisibleQuestionSections($template))
                 <div class="card border p-3 mb-3">
                     <h5 class="mb-3">{{ $template->nombre_publico }}</h5>
 
-                    @foreach($template->sections->sortBy('orden') as $section)
+                    @foreach(\App\Services\Ipt\IptFormLayout::visibleQuestionSections($template) as $section)
                         <div class="mb-3">
                             <h6>{{ $section->titulo }}</h6>
                             <div class="table-responsive">
@@ -87,7 +88,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach($section->questions->sortBy('orden') as $question)
+                                        @foreach(\App\Services\Ipt\IptFormLayout::sectionQuestions($section)->sortBy('orden') as $question)
                                             @php $selected = old('answers.' . $question->id, $answers[$question->id] ?? null); @endphp
                                             <tr>
                                                 <td>{{ $question->texto }}</td>
@@ -102,11 +103,13 @@
                         </div>
                     @endforeach
                 </div>
+                @endif
 
+                @if(\App\Services\Ipt\IptFormLayout::requirementsSectionIsVisible($template))
                 <div class="card border p-3 mb-3">
                     <h6>Requerimientos estación de trabajo</h6>
                     <div class="row">
-                        @foreach($template->requirements->where('activo', true)->sortBy('orden') as $requirement)
+                        @foreach(\App\Services\Ipt\IptFormLayout::activeRequirements($template)->sortBy('orden') as $requirement)
                             <div class="col-md-4">
                                 <label class="form-check mb-2">
                                     <input type="checkbox" class="form-check-input" name="requirements[{{ $requirement->id }}]" value="1" @checked(old('requirements.' . $requirement->id, $requirements[$requirement->id] ?? false))>
@@ -116,6 +119,7 @@
                         @endforeach
                     </div>
                 </div>
+                @endif
 
                 @if(($template->evidencia_fotografica_modo ?? 'none') !== 'none')
                     <div class="card border p-3 mb-3">

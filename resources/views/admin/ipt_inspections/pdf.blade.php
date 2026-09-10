@@ -1,5 +1,5 @@
 @php
-    $inspection->loadMissing(['template.sections.questions', 'answers', 'requirements.requirement', 'programaCaso.empleado.cliente', 'programaCaso.empleado.sucursal']);
+    $inspection->loadMissing(['template.sections.questions', 'template.requirements', 'answers', 'requirements.requirement', 'programaCaso.empleado.cliente', 'programaCaso.empleado.sucursal']);
     $answersByQuestion = $inspection->answers->keyBy('question_id');
 
     $imageData = function (?string $path) {
@@ -124,8 +124,9 @@
         @endif
     @endif
 
+    @if($inspection->template && \App\Services\Ipt\IptFormLayout::hasVisibleQuestionSections($inspection->template))
     <h2>Respuestas</h2>
-    @foreach($inspection->template->sections->sortBy('orden') as $section)
+    @foreach(\App\Services\Ipt\IptFormLayout::visibleQuestionSections($inspection->template) as $section)
         <div style="margin-top:10px; font-weight:bold;">{{ $section->titulo }}</div>
         <table>
             <thead>
@@ -136,7 +137,7 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($section->questions->sortBy('orden') as $question)
+                @foreach(\App\Services\Ipt\IptFormLayout::sectionQuestions($section)->sortBy('orden') as $question)
                     @php $ans = $answersByQuestion->get($question->id); @endphp
                     <tr>
                         <td>{{ $question->texto }}</td>
@@ -147,7 +148,9 @@
             </tbody>
         </table>
     @endforeach
+    @endif
 
+    @if($inspection->template && \App\Services\Ipt\IptFormLayout::requirementsSectionIsVisible($inspection->template))
     <h2>Requerimientos de estación</h2>
     <table>
         <thead>
@@ -167,6 +170,7 @@
             @endforelse
         </tbody>
     </table>
+    @endif
 
     <h2>Hallazgos y plan</h2>
     <table>

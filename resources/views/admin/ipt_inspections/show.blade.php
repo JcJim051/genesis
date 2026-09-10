@@ -6,6 +6,7 @@
         'programaCaso.empleado.cliente',
         'programaCaso.empleado.sucursal',
         'template.sections.questions',
+        'template.requirements',
         'answers',
         'requirements.requirement',
         'initialInspection',
@@ -48,9 +49,10 @@
             </div>
         </div>
 
+        @if($entry->template && \App\Services\Ipt\IptFormLayout::hasVisibleQuestionSections($entry->template))
         <div class="card p-4 mb-4">
             <h5>Respuestas</h5>
-            @foreach($entry->template->sections->sortBy('orden') as $section)
+            @foreach(\App\Services\Ipt\IptFormLayout::visibleQuestionSections($entry->template) as $section)
                 <div class="mt-3">
                     <h6>{{ $section->titulo }}</h6>
                     <div class="table-responsive">
@@ -63,7 +65,7 @@
                             </tr>
                             </thead>
                             <tbody>
-                            @foreach($section->questions->sortBy('orden') as $question)
+                            @foreach(\App\Services\Ipt\IptFormLayout::sectionQuestions($section)->sortBy('orden') as $question)
                                 @php $ans = $answersByQuestion->get($question->id); @endphp
                                 <tr>
                                     <td>{{ $question->texto }}</td>
@@ -77,7 +79,9 @@
                 </div>
             @endforeach
         </div>
+        @endif
 
+        @if($entry->template && \App\Services\Ipt\IptFormLayout::requirementsSectionIsVisible($entry->template))
         <div class="card p-4 mb-4">
             <h5>Requerimientos</h5>
             <ul class="mb-0">
@@ -88,6 +92,7 @@
                 @endforelse
             </ul>
         </div>
+        @endif
 
         <div class="card p-4 mb-4">
             <h5>Observaciones y plan</h5>
