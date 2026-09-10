@@ -64,6 +64,77 @@ class IptFormLayoutTest extends TestCase
         $this->assertSame('Apoyapiés', IptFormLayout::activeRequirements($withActive)->first()->nombre);
     }
 
+    public function test_capture_field_flags_default_on_and_can_hide_notes_section(): void
+    {
+        $legacy = new IptTemplate(['nombre_publico' => 'VDT']);
+        $this->assertTrue(IptFormLayout::showsHallazgos($legacy));
+        $this->assertTrue(IptFormLayout::showsObservaciones($legacy));
+        $this->assertTrue(IptFormLayout::showsHallazgosObservacionesField($legacy));
+        $this->assertTrue(IptFormLayout::showsRecomendaciones($legacy));
+        $this->assertTrue(IptFormLayout::showsAccion($legacy));
+        $this->assertTrue(IptFormLayout::showsResponsable($legacy));
+        $this->assertTrue(IptFormLayout::showsEstado($legacy));
+        $this->assertTrue(IptFormLayout::captureNotesSectionIsVisible($legacy));
+        $this->assertTrue(IptFormLayout::captureFieldsRowIsVisible($legacy));
+        $this->assertSame('Hallazgos / observaciones', IptFormLayout::hallazgosObservacionesLabel($legacy));
+
+        $hiddenNotes = new IptTemplate([
+            'mostrar_hallazgos' => false,
+            'mostrar_observaciones' => false,
+            'mostrar_recomendaciones' => false,
+            'mostrar_accion' => false,
+            'mostrar_responsable' => false,
+            'mostrar_estado' => true,
+        ]);
+        $this->assertFalse(IptFormLayout::showsHallazgosObservacionesField($hiddenNotes));
+        $this->assertFalse(IptFormLayout::captureNotesSectionIsVisible($hiddenNotes));
+        $this->assertTrue(IptFormLayout::captureFieldsRowIsVisible($hiddenNotes));
+        $this->assertFalse(IptFormLayout::captureFieldsRowIsVisible(
+            new IptTemplate([
+                'mostrar_hallazgos' => false,
+                'mostrar_observaciones' => false,
+                'mostrar_recomendaciones' => false,
+                'mostrar_accion' => false,
+                'mostrar_responsable' => false,
+                'mostrar_estado' => false,
+            ])
+        ));
+        $this->assertTrue(IptFormLayout::captureFieldsRowIsVisible(
+            new IptTemplate([
+                'mostrar_hallazgos' => false,
+                'mostrar_observaciones' => false,
+                'mostrar_recomendaciones' => false,
+                'mostrar_accion' => false,
+                'mostrar_responsable' => false,
+                'mostrar_estado' => false,
+            ]),
+            true
+        ));
+    }
+
+    public function test_hallazgos_and_observaciones_share_one_field_with_dynamic_label(): void
+    {
+        $onlyHallazgos = new IptTemplate([
+            'mostrar_hallazgos' => true,
+            'mostrar_observaciones' => false,
+        ]);
+        $this->assertTrue(IptFormLayout::showsHallazgosObservacionesField($onlyHallazgos));
+        $this->assertSame('Hallazgos', IptFormLayout::hallazgosObservacionesLabel($onlyHallazgos));
+
+        $onlyObservaciones = new IptTemplate([
+            'mostrar_hallazgos' => false,
+            'mostrar_observaciones' => true,
+        ]);
+        $this->assertTrue(IptFormLayout::showsHallazgosObservacionesField($onlyObservaciones));
+        $this->assertSame('Observaciones', IptFormLayout::hallazgosObservacionesLabel($onlyObservaciones));
+
+        $neither = new IptTemplate([
+            'mostrar_hallazgos' => false,
+            'mostrar_observaciones' => false,
+        ]);
+        $this->assertFalse(IptFormLayout::showsHallazgosObservacionesField($neither));
+    }
+
     /**
      * @param  list<string>  $questionTexts
      */

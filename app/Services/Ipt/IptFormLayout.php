@@ -72,6 +72,129 @@ class IptFormLayout
         return self::activeRequirements($template)->isNotEmpty();
     }
 
+    /**
+     * Template capture-field flags default ON so existing templates keep current behavior.
+     *
+     * @param  object  $template
+     */
+    public static function showsHallazgos(object $template): bool
+    {
+        return self::templateFlag($template, 'mostrar_hallazgos');
+    }
+
+    /**
+     * Observaciones shares the `hallazgos` textarea on the inspection form.
+     *
+     * @param  object  $template
+     */
+    public static function showsObservaciones(object $template): bool
+    {
+        return self::templateFlag($template, 'mostrar_observaciones');
+    }
+
+    /**
+     * Combined “Hallazgos / observaciones” input is shown if either flag is on.
+     *
+     * @param  object  $template
+     */
+    public static function showsHallazgosObservacionesField(object $template): bool
+    {
+        return self::showsHallazgos($template) || self::showsObservaciones($template);
+    }
+
+    /**
+     * @param  object  $template
+     */
+    public static function hallazgosObservacionesLabel(object $template): string
+    {
+        $hallazgos = self::showsHallazgos($template);
+        $observaciones = self::showsObservaciones($template);
+
+        if ($hallazgos && $observaciones) {
+            return 'Hallazgos / observaciones';
+        }
+
+        if ($hallazgos) {
+            return 'Hallazgos';
+        }
+
+        if ($observaciones) {
+            return 'Observaciones';
+        }
+
+        return 'Hallazgos / observaciones';
+    }
+
+    /**
+     * @param  object  $template
+     */
+    public static function showsRecomendaciones(object $template): bool
+    {
+        return self::templateFlag($template, 'mostrar_recomendaciones');
+    }
+
+    /**
+     * @param  object  $template
+     */
+    public static function showsAccion(object $template): bool
+    {
+        return self::templateFlag($template, 'mostrar_accion');
+    }
+
+    /**
+     * @param  object  $template
+     */
+    public static function showsResponsable(object $template): bool
+    {
+        return self::templateFlag($template, 'mostrar_responsable');
+    }
+
+    /**
+     * @param  object  $template
+     */
+    public static function showsEstado(object $template): bool
+    {
+        return self::templateFlag($template, 'mostrar_estado');
+    }
+
+    /**
+     * Notes/plan block on fill, show, and PDF (excludes estado, which lives in meta).
+     *
+     * @param  object  $template
+     */
+    public static function captureNotesSectionIsVisible(object $template): bool
+    {
+        return self::showsHallazgosObservacionesField($template)
+            || self::showsRecomendaciones($template)
+            || self::showsAccion($template)
+            || self::showsResponsable($template);
+    }
+
+    /**
+     * Fill-form row that also includes estado and optional follow-up success.
+     *
+     * @param  object  $template
+     */
+    public static function captureFieldsRowIsVisible(object $template, bool $includeFollowup = false): bool
+    {
+        return self::captureNotesSectionIsVisible($template)
+            || self::showsEstado($template)
+            || $includeFollowup;
+    }
+
+    /**
+     * @param  object  $template
+     */
+    private static function templateFlag(object $template, string $attribute, bool $default = true): bool
+    {
+        $value = $template->{$attribute} ?? $default;
+        if ($value === null) {
+            return $default;
+        }
+
+        return $value === true || $value === 1 || $value === '1';
+    }
+
     private static function asCollection(mixed $items): Collection
     {
         if ($items instanceof Collection) {

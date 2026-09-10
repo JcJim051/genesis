@@ -16,6 +16,7 @@ use App\Services\Google\IptDriveLayout;
 use App\Support\TenantSelection;
 use App\Support\IntegrationSettings;
 use App\Services\Ipt\BusinessDayService;
+use App\Services\Ipt\IptFormLayout;
 use App\Services\Ipt\IptScoringService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
@@ -724,11 +725,11 @@ class IptInspectionCrudController extends CrudController
             'foto_antes' => $fotoAntesRule,
             'foto_despues' => $fotoDespuesRule,
             'foto_general' => $fotoGeneralRule,
-            'hallazgos' => 'nullable|string',
-            'recomendaciones' => 'nullable|string',
-            'accion' => ($template->mostrar_accion ? 'nullable' : 'prohibited') . '|string',
-            'responsable' => ($template->mostrar_responsable ? 'nullable' : 'prohibited') . '|string|max:255',
-            'estado' => 'nullable|in:abierto,cerrado',
+            'hallazgos' => (IptFormLayout::showsHallazgosObservacionesField($template) ? 'nullable' : 'prohibited') . '|string',
+            'recomendaciones' => (IptFormLayout::showsRecomendaciones($template) ? 'nullable' : 'prohibited') . '|string',
+            'accion' => (IptFormLayout::showsAccion($template) ? 'nullable' : 'prohibited') . '|string',
+            'responsable' => (IptFormLayout::showsResponsable($template) ? 'nullable' : 'prohibited') . '|string|max:255',
+            'estado' => IptFormLayout::showsEstado($template) ? 'nullable|in:abierto,cerrado' : 'prohibited',
             'seguimiento_exitoso' => 'nullable|in:0,1',
             'answers' => 'required|array',
             'answers.*' => 'nullable|in:si,no,na',
@@ -756,7 +757,11 @@ class IptInspectionCrudController extends CrudController
                 ->toDateString();
         }
 
-        DB::transaction(function () use ($editing, $programaCaso, $template, $tipo, $initial, $validation, $scoring, $risk, $followupDate, $fechaInspeccion) {
+        $estado = IptFormLayout::showsEstado($template)
+            ? ($validation['estado'] ?? 'abierto')
+            : ($editing?->estado ?? 'abierto');
+
+        DB::transaction(function () use ($editing, $programaCaso, $template, $tipo, $initial, $validation, $scoring, $risk, $followupDate, $fechaInspeccion, $estado) {
             $inspection = $editing ?: new IptInspection();
 
             $fotoAntesPath = $inspection->foto_antes;
@@ -799,11 +804,11 @@ class IptInspectionCrudController extends CrudController
                 'foto_antes' => $fotoAntesPath,
                 'foto_despues' => $fotoDespuesPath,
                 'foto_general' => $fotoGeneralPath,
-                'hallazgos' => $validation['hallazgos'] ?? null,
-                'recomendaciones' => $validation['recomendaciones'] ?? null,
-                'accion' => $template->mostrar_accion ? ($validation['accion'] ?? null) : null,
-                'responsable' => $template->mostrar_responsable ? ($validation['responsable'] ?? null) : null,
-                'estado' => $validation['estado'] ?? 'abierto',
+                'hallazgos' => IptFormLayout::showsHallazgosObservacionesField($template) ? ($validation['hallazgos'] ?? null) : null,
+                'recomendaciones' => IptFormLayout::showsRecomendaciones($template) ? ($validation['recomendaciones'] ?? null) : null,
+                'accion' => IptFormLayout::showsAccion($template) ? ($validation['accion'] ?? null) : null,
+                'responsable' => IptFormLayout::showsResponsable($template) ? ($validation['responsable'] ?? null) : null,
+                'estado' => $estado,
                 'seguimiento_exitoso' => array_key_exists('seguimiento_exitoso', $validation)
                     ? (int) $validation['seguimiento_exitoso'] === 1
                     : null,

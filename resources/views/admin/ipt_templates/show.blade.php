@@ -18,6 +18,17 @@
             <div class="mt-1 text-muted">
                 Código: {{ $entry->codigo ?: '—' }} · Segmento: {{ $entry->segmento ?: '—' }}
             </div>
+            <div class="mt-3">
+                <strong>Campos visibles en la inspección</strong>
+                <ul class="mb-0 mt-2">
+                    <li>Hallazgos: {{ ($entry->mostrar_hallazgos ?? true) ? 'Sí' : 'No' }}</li>
+                    <li>Observaciones: {{ ($entry->mostrar_observaciones ?? true) ? 'Sí' : 'No' }}</li>
+                    <li>Recomendaciones: {{ ($entry->mostrar_recomendaciones ?? true) ? 'Sí' : 'No' }}</li>
+                    <li>Acción: {{ ($entry->mostrar_accion ?? true) ? 'Sí' : 'No' }}</li>
+                    <li>Responsable: {{ ($entry->mostrar_responsable ?? true) ? 'Sí' : 'No' }}</li>
+                    <li>Estado: {{ ($entry->mostrar_estado ?? true) ? 'Sí' : 'No' }}</li>
+                </ul>
+            </div>
         </div>
 
         <div class="card p-4 mb-4">

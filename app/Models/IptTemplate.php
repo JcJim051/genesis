@@ -18,12 +18,20 @@ class IptTemplate extends Model
         'evidencia_fotografica_modo',
         'mostrar_accion',
         'mostrar_responsable',
+        'mostrar_hallazgos',
+        'mostrar_observaciones',
+        'mostrar_recomendaciones',
+        'mostrar_estado',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
         'mostrar_accion' => 'boolean',
         'mostrar_responsable' => 'boolean',
+        'mostrar_hallazgos' => 'boolean',
+        'mostrar_observaciones' => 'boolean',
+        'mostrar_recomendaciones' => 'boolean',
+        'mostrar_estado' => 'boolean',
     ];
 
     public function cliente()
