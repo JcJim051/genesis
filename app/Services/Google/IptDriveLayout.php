@@ -595,6 +595,28 @@ class IptDriveLayout
     }
 
     /**
+     * Body for spreadsheets.values.clear. Google expects a JSON object
+     * (`{}`). An empty PHP array encodes as `[]` and Sheets returns
+     * INVALID_ARGUMENT / Unknown name "".
+     */
+    public static function sheetsClearBody(): object
+    {
+        return (object) [];
+    }
+
+    /**
+     * POST URL for spreadsheets.values.clear.
+     */
+    public static function sheetsValuesClearUrl(string $spreadsheetId, string $a1): string
+    {
+        return 'https://sheets.googleapis.com/v4/spreadsheets/'
+            . rawurlencode($spreadsheetId)
+            . '/values/'
+            . rawurlencode($a1)
+            . ':clear';
+    }
+
+    /**
      * Checklist body from the IPT's Genesis template (sections → questions → answers).
      *
      * @return list<array{type: string, titulo?: string, number?: int, texto?: string, si?: string, no?: string, na?: string}>

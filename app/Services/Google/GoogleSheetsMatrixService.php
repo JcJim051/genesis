@@ -49,7 +49,10 @@ class GoogleSheetsMatrixService
             $values[] = $row;
         }
 
-        $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/Matriz IPT!A1:Z50000:clear');
+        $http->asJson()->post(
+            IptDriveLayout::sheetsValuesClearUrl($spreadsheetId, 'Matriz IPT!A1:Z50000'),
+            IptDriveLayout::sheetsClearBody()
+        );
         $update = $http->put(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/Matriz IPT!A1?valueInputOption=RAW', [
             'range' => 'Matriz IPT!A1',
             'majorDimension' => 'ROWS',
@@ -105,7 +108,10 @@ class GoogleSheetsMatrixService
         }
 
         $tab = 'Matriz Osteo';
-        $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1:Z50000') . ':clear');
+        $http->asJson()->post(
+            IptDriveLayout::sheetsValuesClearUrl($spreadsheetId, $tab . '!A1:Z50000'),
+            IptDriveLayout::sheetsClearBody()
+        );
         $update = $http->put(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1') . '?valueInputOption=RAW', [
             'range' => $tab . '!A1',
             'majorDimension' => 'ROWS',
@@ -113,7 +119,10 @@ class GoogleSheetsMatrixService
         ]);
         if (! $update->successful()) {
             $tab = 'Matriz IPT';
-            $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1:Z50000') . ':clear');
+            $http->asJson()->post(
+                IptDriveLayout::sheetsValuesClearUrl($spreadsheetId, $tab . '!A1:Z50000'),
+                IptDriveLayout::sheetsClearBody()
+            );
             $update = $http->put(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1') . '?valueInputOption=RAW', [
                 'range' => $tab . '!A1',
                 'majorDimension' => 'ROWS',
@@ -1062,7 +1071,10 @@ class GoogleSheetsMatrixService
 
     private function clearSheetRange($http, string $spreadsheetId, string $a1): void
     {
-        $resp = $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($a1) . ':clear');
+        $resp = $http->asJson()->post(
+            IptDriveLayout::sheetsValuesClearUrl($spreadsheetId, $a1),
+            IptDriveLayout::sheetsClearBody()
+        );
         if (! $resp->successful()) {
             throw new RuntimeException('No fue posible limpiar el bloque de preguntas de FORMATO IPT: ' . $resp->body());
         }
@@ -1071,7 +1083,10 @@ class GoogleSheetsMatrixService
     private function writeSheetValues($http, string $spreadsheetId, string $tab, array $values): void
     {
         $clearRange = $tab . '!A1:Z50000';
-        $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($clearRange) . ':clear');
+        $http->asJson()->post(
+            IptDriveLayout::sheetsValuesClearUrl($spreadsheetId, $clearRange),
+            IptDriveLayout::sheetsClearBody()
+        );
 
         $update = $http->put(
             self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1') . '?valueInputOption=RAW',

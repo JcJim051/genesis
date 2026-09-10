@@ -50,6 +50,8 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString('copyIptTemplate', $service);
         $this->assertStringContainsString('uploadInspectionEvidenceToDrive', $service);
         $this->assertStringContainsString('formatoBodyClearA1', $service);
+        $this->assertStringContainsString('sheetsClearBody', $service);
+        $this->assertStringContainsString('sheetsValuesClearUrl', $service);
         $this->assertStringContainsString('alignSeguimientosRow', $service);
         $this->assertStringContainsString('localEvidencePath', $service);
         $this->assertStringNotContainsString("url('storage/", $service);
@@ -100,6 +102,8 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString('function matchSheetTitle', $layout);
         $this->assertStringContainsString('function resolveIptTabTitles', $layout);
         $this->assertStringContainsString('function checklistBody', $layout);
+        $this->assertStringContainsString('function sheetsClearBody', $layout);
+        $this->assertStringContainsString('function sheetsValuesClearUrl', $layout);
         $this->assertStringContainsString('function photoCellValue', $layout);
         $this->assertStringContainsString('function alignSeguimientosRow', $layout);
         $this->assertStringContainsString('CHECKLIST_START_ROW', $layout);
