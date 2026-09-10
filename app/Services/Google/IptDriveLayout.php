@@ -5,6 +5,7 @@ namespace App\Services\Google;
 use App\Models\Empleado;
 use App\Models\IptInspection;
 use App\Models\User;
+use App\Services\Ipt\IptFormLayout;
 use Carbon\Carbon;
 use DateTimeInterface;
 use RuntimeException;
@@ -13,6 +14,10 @@ use RuntimeException;
  * Maps IPT inspections onto the team's Excel/Drive template
  * (FORMATO IPT + SEGUIMIENTOS) and the folder path
  * Genesis / {Empresa} / {AÑO} / {MES} / {Trabajador}/.
+ *
+ * The spreadsheet copy supplies graphic structure (header, SI/NO/N/A
+ * columns, footer blocks). Checklist titles, questions, answers,
+ * scores, notes and photos always come from the Genesis IPT record.
  */
 class IptDriveLayout
 {
@@ -40,18 +45,31 @@ class IptDriveLayout
         12 => 'DICIEMBRE',
     ];
 
+    /** First body row under the identity header (section titles + questions). */
+    public const CHECKLIST_START_ROW = 7;
+
+    /** Clears leftover plantilla VDT question labels before writing DB content. */
+    public const FORMATO_BODY_CLEAR_RANGE = 'A7:H250';
+
     /**
-     * Checklist item number (1–43) => FORMATO IPT row.
+     * Canonical SEGUIMIENTOS columns (A–L). Values are aligned to the
+     * copied sheet's header row by name so Hallazgos never lands in Área/Cargo.
      *
-     * @var array<int, int>
+     * @var list<string>
      */
-    public const QUESTION_ROWS = [
-        1 => 8, 2 => 9, 3 => 10, 4 => 11, 5 => 12, 6 => 13,
-        7 => 15, 8 => 16, 9 => 17, 10 => 18, 11 => 19, 12 => 20, 13 => 21, 14 => 22, 15 => 23,
-        16 => 25, 17 => 26, 18 => 27, 19 => 28, 20 => 29, 21 => 30, 22 => 31, 23 => 32,
-        24 => 34, 25 => 35, 26 => 36, 27 => 37,
-        28 => 39, 29 => 40, 30 => 41, 31 => 42,
-        32 => 44, 33 => 45, 34 => 46, 35 => 47, 36 => 48, 37 => 49, 38 => 50, 39 => 51, 40 => 52, 41 => 53, 42 => 54, 43 => 55,
+    public const SEGUIMIENTOS_HEADERS = [
+        'FECHA',
+        'IDENTIFICACION',
+        'NOMBRE COMPLETO',
+        'AREA',
+        'CARGO',
+        'HALLAZGOS',
+        'RECOMENDACIONES',
+        'REQUERIMIENTOS',
+        'FECHA DE SEGUIMIENTO',
+        'SEGUIMIENTO EXITOSO',
+        'OBSERVACIONES DE SEGUIMIENTO',
+        'ESTADO',
     ];
 
     /**
@@ -571,8 +589,58 @@ class IptDriveLayout
         ];
     }
 
+    public static function formatoBodyClearA1(string $formatoTab): string
+    {
+        return self::a1($formatoTab, self::FORMATO_BODY_CLEAR_RANGE);
+    }
+
     /**
-     * Sheets API value ranges for FORMATO IPT (does not rewrite labels).
+     * Checklist body from the IPT's Genesis template (sections → questions → answers).
+     *
+     * @return list<array{type: string, titulo?: string, number?: int, texto?: string, si?: string, no?: string, na?: string}>
+     */
+    public static function checklistBody(IptInspection $inspection): array
+    {
+        $rows = [];
+        $template = $inspection->template;
+        if (! $template) {
+            return $rows;
+        }
+
+        $answersByQuestion = $inspection->answers?->keyBy('question_id') ?? collect();
+        $number = 0;
+
+        foreach (IptFormLayout::visibleQuestionSections($template) as $section) {
+            $titulo = trim((string) ($section->titulo ?? ''));
+            $rows[] = [
+                'type' => 'section',
+                'titulo' => $titulo !== '' ? $titulo : 'Sección',
+            ];
+
+            foreach (IptFormLayout::sectionQuestions($section)->sortBy('orden')->values() as $question) {
+                $number++;
+                $ans = $answersByQuestion->get($question->id);
+                $kind = self::answerKind($ans?->respuesta ?? null);
+                $rows[] = [
+                    'type' => 'question',
+                    'number' => $number,
+                    'texto' => (string) ($question->texto ?? ''),
+                    'si' => $kind === 'si' ? 'X' : '',
+                    'no' => $kind === 'no' ? 'X' : '',
+                    'na' => $kind === 'na' ? 'X' : '',
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * Sheets API value ranges for FORMATO IPT.
+     *
+     * Header cells stay in the plantilla graphic (B2…H4, A5). The checklist
+     * block is rebuilt from the IPT in Genesis, then totals / notes / photos
+     * are placed immediately under that block.
      *
      * @param  array{inicial?: string, despues?: string}  $photoLinks
      * @return list<array{range: string, values: array<int, array<int, mixed>>}>
@@ -606,78 +674,99 @@ class IptDriveLayout
         $inspector = self::inspectorLabel($inspection);
         $push('A5', 'Profesional que realiza la inspección (Nombre/cargo): ' . $inspector);
 
-        $answersByQuestion = $inspection->answers?->keyBy('question_id') ?? collect();
-        $orderedQuestions = [];
-        $sections = $inspection->template?->sections?->sortBy('orden') ?? collect();
-        foreach ($sections as $section) {
-            $questions = $section->questions?->sortBy('orden') ?? collect();
-            foreach ($questions as $question) {
-                $orderedQuestions[] = $question;
-            }
-        }
-
-        foreach (self::QUESTION_ROWS as $number => $row) {
-            $question = $orderedQuestions[$number - 1] ?? null;
-            $si = '';
-            $no = '';
-            $na = '';
-            if ($question) {
-                $ans = $answersByQuestion->get($question->id);
-                $kind = self::answerKind($ans?->respuesta ?? null);
-                if ($kind === 'si') {
-                    $si = 1;
-                } elseif ($kind === 'no') {
-                    $no = 0;
-                } elseif ($kind === 'na') {
-                    $na = 0;
-                }
-            }
-            $push('F' . $row, $si);
-            $push('G' . $row, $no);
-            $push('H' . $row, $na);
-        }
-
-        $push('F56', $inspection->puntaje_total !== null ? (int) $inspection->puntaje_total : '');
-
-        foreach (self::REQUIREMENT_CELLS as $cell) {
-            $push($cell, '');
-        }
-        foreach ($inspection->requirements ?? [] as $req) {
-            if (! $req->aplica) {
+        $body = self::checklistBody($inspection);
+        $start = self::CHECKLIST_START_ROW;
+        $grid = [];
+        foreach ($body as $item) {
+            if (($item['type'] ?? '') === 'section') {
+                $grid[] = [(string) ($item['titulo'] ?? ''), '', '', '', '', '', '', ''];
                 continue;
             }
-            $cell = self::requirementCell((string) ($req->requirement?->nombre ?? ''));
-            if ($cell !== null) {
-                $push($cell, 'X');
+            $grid[] = [
+                (int) ($item['number'] ?? 0),
+                (string) ($item['texto'] ?? ''),
+                '',
+                '',
+                '',
+                (string) ($item['si'] ?? ''),
+                (string) ($item['no'] ?? ''),
+                (string) ($item['na'] ?? ''),
+            ];
+        }
+
+        if ($grid === []) {
+            $grid[] = ['', '(Sin preguntas en la plantilla IPT de Genesis)', '', '', '', '', '', ''];
+        }
+
+        $end = $start + count($grid) - 1;
+        $ranges[] = [
+            'range' => self::a1($tab, 'A' . $start . ':H' . $end),
+            'values' => $grid,
+        ];
+
+        $row = $end + 2;
+        $puntaje = $inspection->puntaje_total !== null ? (int) $inspection->puntaje_total : '';
+        $push('A' . $row, 'Puntaje total');
+        $push('F' . $row, $puntaje);
+
+        $row += 2;
+        $reqRows = self::requirementFooterRows($inspection);
+        if ($reqRows !== []) {
+            $push('A' . $row, 'Requerimientos de estación');
+            $row++;
+            foreach ($reqRows as $reqRow) {
+                $push('A' . $row, $reqRow['nombre']);
+                $push('F' . $row, $reqRow['marca']);
+                $row++;
             }
+            $row++;
         }
 
-        foreach (self::RISK_MARK_ROWS as $row) {
-            $push('B' . $row, '');
-        }
-        $nivel = mb_strtolower(trim((string) ($inspection->nivel_riesgo ?? '')), 'UTF-8');
-        if (isset(self::RISK_MARK_ROWS[$nivel])) {
-            $push('B' . self::RISK_MARK_ROWS[$nivel], 'X');
-        }
-        $push('E61', $inspection->puntaje_total !== null ? (int) $inspection->puntaje_total : '');
+        $nivel = mb_strtoupper(trim((string) ($inspection->nivel_riesgo ?? '')), 'UTF-8');
+        $push('A' . $row, 'Nivel de riesgo');
+        $push('B' . $row, $nivel !== '' ? $nivel : '—');
+        $push('E' . $row, $puntaje);
+        $row += 2;
 
-        $push('A65', (string) ($inspection->hallazgos ?? ''));
-
-        $accion = trim((string) ($inspection->accion ?? ''));
-        if ($accion === '') {
-            $accion = trim((string) ($inspection->recomendaciones ?? ''));
+        $template = $inspection->template ?? (object) [];
+        if (IptFormLayout::showsHallazgosObservacionesField($template)) {
+            $push('A' . $row, IptFormLayout::hallazgosObservacionesLabel($template));
+            $push('B' . $row, (string) ($inspection->hallazgos ?? ''));
+            $row++;
         }
-        $push('A68', $accion);
-        $push('E68', trim((string) ($inspection->responsable ?? '')));
-        // Clear the template's sample second recommendation row.
-        $push('A69', '');
-        $push('E69', '');
+        if (IptFormLayout::showsRecomendaciones($template)) {
+            $push('A' . $row, 'Recomendaciones');
+            $push('B' . $row, (string) ($inspection->recomendaciones ?? ''));
+            $row++;
+        }
+        if (IptFormLayout::showsAccion($template)) {
+            $accion = trim((string) ($inspection->accion ?? ''));
+            if ($accion === '' && ! IptFormLayout::showsRecomendaciones($template)) {
+                $accion = trim((string) ($inspection->recomendaciones ?? ''));
+            }
+            $push('A' . $row, 'Acción');
+            $push('B' . $row, $accion);
+            $row++;
+        }
+        if (IptFormLayout::showsResponsable($template)) {
+            $push('A' . $row, 'Responsable');
+            $push('E' . $row, trim((string) ($inspection->responsable ?? '')));
+            $row += 2;
+        } else {
+            $row++;
+        }
 
-        $push('A72', (string) ($photoLinks['inicial'] ?? ''));
-        $push('E72', (string) ($photoLinks['despues'] ?? ''));
+        $push('A' . $row, 'Evidencia fotográfica');
+        $row++;
+        $push('A' . $row, 'Inicial / general');
+        $push('E' . $row, 'Después');
+        $row++;
+        $push('A' . $row, self::photoCellValue((string) ($photoLinks['inicial'] ?? '')));
+        $push('E' . $row, self::photoCellValue((string) ($photoLinks['despues'] ?? '')));
+        $row += 2;
 
         $creatorName = trim((string) ($inspection->creator?->name ?? ''));
-        $push('A79', 'Firma profesional: ' . ($creatorName !== '' ? $creatorName : '_________________________'));
+        $push('A' . $row, 'Firma profesional: ' . ($creatorName !== '' ? $creatorName : '_________________________'));
 
         return $ranges;
     }
@@ -690,15 +779,132 @@ class IptDriveLayout
     {
         $map = [];
         foreach (self::formatoValueRanges($inspection, $photoLinks) as $range) {
-            $cell = self::cellFromA1Range($range['range']);
-            $map[$cell] = $range['values'][0][0] ?? null;
+            $a1 = self::cellFromA1Range($range['range']);
+            $values = $range['values'] ?? [];
+            $parsed = self::parseA1Start($a1);
+            foreach ($values as $r => $cols) {
+                if (! is_array($cols)) {
+                    continue;
+                }
+                foreach (array_values($cols) as $c => $value) {
+                    $map[self::columnLetter($parsed['col'] + $c) . ($parsed['row'] + $r)] = $value;
+                }
+            }
         }
 
         return $map;
     }
 
     /**
-     * One SEGUIMIENTOS matrix row (A–L).
+     * @return list<array{nombre: string, marca: string}>
+     */
+    public static function requirementFooterRows(IptInspection $inspection): array
+    {
+        $rows = [];
+        foreach ($inspection->requirements ?? [] as $req) {
+            $nombre = trim((string) ($req->requirement?->nombre ?? ''));
+            if ($nombre === '') {
+                continue;
+            }
+            $rows[] = [
+                'nombre' => $nombre,
+                'marca' => $req->aplica ? 'X' : '',
+            ];
+        }
+
+        return $rows;
+    }
+
+    public static function isUnusableLocalUrl(string $url): bool
+    {
+        return (bool) preg_match('#^https?://(?:127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\])(?::\d+)?(?:/|$)#i', $url);
+    }
+
+    /**
+     * Value for an evidence cell: IMAGE() for Drive/hosted files; never APP_URL localhost.
+     */
+    public static function photoCellValue(string $linkOrFormula): string
+    {
+        $link = trim($linkOrFormula);
+        if ($link === '' || self::isUnusableLocalUrl($link)) {
+            return '';
+        }
+        if (str_starts_with($link, '=')) {
+            return $link;
+        }
+
+        $fileId = '';
+        if (preg_match('#(?:drive\.google\.com/uc\?[^"\s]*id=|drive\.google\.com/file/d/|lh3\.googleusercontent\.com/d/)([a-zA-Z0-9_-]+)#i', $link, $m)) {
+            $fileId = $m[1];
+        } elseif (preg_match('#^[a-zA-Z0-9_-]{20,}$#', $link)) {
+            $fileId = $link;
+        }
+
+        if ($fileId !== '') {
+            return '=IMAGE("https://drive.google.com/uc?export=view&id=' . $fileId . '")';
+        }
+
+        if (preg_match('#^https://#i', $link)) {
+            if (preg_match('#\.(jpe?g|png|gif|webp)(\?|$)#i', $link)) {
+                return '=IMAGE("' . str_replace('"', '""', $link) . '")';
+            }
+
+            return $link;
+        }
+
+        return '';
+    }
+
+    public static function driveFileViewUrl(string $fileId): string
+    {
+        $fileId = self::sanitizeDriveFileId($fileId);
+
+        return $fileId === '' ? '' : 'https://drive.google.com/file/d/' . $fileId . '/view';
+    }
+
+    /**
+     * @return array{col: int, row: int}
+     */
+    public static function parseA1Start(string $a1): array
+    {
+        $a1 = explode(':', $a1)[0];
+        if (! preg_match('/^([A-Za-z]+)(\d+)$/', $a1, $m)) {
+            return ['col' => 1, 'row' => 1];
+        }
+
+        return [
+            'col' => self::columnIndex($m[1]),
+            'row' => (int) $m[2],
+        ];
+    }
+
+    public static function columnIndex(string $letters): int
+    {
+        $letters = strtoupper($letters);
+        $n = 0;
+        $len = strlen($letters);
+        for ($i = 0; $i < $len; $i++) {
+            $n = $n * 26 + (ord($letters[$i]) - 64);
+        }
+
+        return $n;
+    }
+
+    public static function columnLetter(int $index): string
+    {
+        $index = max(1, $index);
+        $letters = '';
+        while ($index > 0) {
+            $index--;
+            $letters = chr(65 + ($index % 26)) . $letters;
+            $index = intdiv($index, 26);
+        }
+
+        return $letters;
+    }
+
+    /**
+     * One SEGUIMIENTOS matrix row (A–L) in canonical order.
      *
      * @return array<int, string>
      */
@@ -750,6 +956,127 @@ class IptDriveLayout
             $observaciones,
             $estado,
         ];
+    }
+
+    /**
+     * Place canonical SEGUIMIENTOS values into the sheet's header order.
+     *
+     * @param  array<int, mixed>  $headerRow
+     * @param  array<int, string>  $canonical
+     * @return list<string>
+     */
+    public static function alignSeguimientosRow(array $headerRow, array $canonical): array
+    {
+        $canonical = array_values($canonical);
+        while (count($canonical) < count(self::SEGUIMIENTOS_HEADERS)) {
+            $canonical[] = '';
+        }
+
+        $headers = [];
+        foreach (array_values($headerRow) as $cell) {
+            $headers[] = self::normalizeHeaderLabel((string) $cell);
+        }
+
+        $indexByKey = self::seguimientosHeaderIndexMap($headers);
+        if ($indexByKey === []) {
+            return $canonical;
+        }
+
+        $width = max(count($headers), count(self::SEGUIMIENTOS_HEADERS), 12);
+        $out = array_fill(0, $width, '');
+        foreach (self::SEGUIMIENTOS_HEADERS as $i => $label) {
+            $key = self::seguimientosHeaderKey($label);
+            $target = $indexByKey[$key] ?? $i;
+            $out[$target] = (string) ($canonical[$i] ?? '');
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param  list<string>  $normalizedHeaders
+     * @return array<string, int>
+     */
+    public static function seguimientosHeaderIndexMap(array $normalizedHeaders): array
+    {
+        $map = [];
+        foreach ($normalizedHeaders as $index => $header) {
+            if ($header === '') {
+                continue;
+            }
+            $key = self::seguimientosHeaderKey($header);
+            if ($key !== '' && ! isset($map[$key])) {
+                $map[$key] = $index;
+            }
+        }
+
+        $needed = ['area', 'cargo', 'hallazgos', 'identificacion', 'nombre'];
+        $hits = 0;
+        foreach ($needed as $key) {
+            if (isset($map[$key])) {
+                $hits++;
+            }
+        }
+
+        return $hits >= 3 ? $map : [];
+    }
+
+    public static function seguimientosHeaderKey(string $label): string
+    {
+        $n = self::normalizeHeaderLabel($label);
+        if ($n === '') {
+            return '';
+        }
+        if (str_contains($n, 'HALLAZGO')) {
+            return 'hallazgos';
+        }
+        if (str_contains($n, 'RECOMENDACION')) {
+            return 'recomendaciones';
+        }
+        if (str_contains($n, 'REQUERIMIENTO')) {
+            return 'requerimientos';
+        }
+        if (str_contains($n, 'FECHA') && str_contains($n, 'SEGUIMIENTO')) {
+            return 'fecha_seguimiento';
+        }
+        if (str_contains($n, 'EXITOSO')) {
+            return 'exitoso';
+        }
+        if (str_contains($n, 'OBSERVACION')) {
+            return 'observaciones';
+        }
+        if ($n === 'ESTADO' || str_ends_with($n, ' ESTADO')) {
+            return 'estado';
+        }
+        if (str_contains($n, 'CARGO')) {
+            return 'cargo';
+        }
+        if ($n === 'AREA' || str_starts_with($n, 'AREA ') || str_contains($n, ' AREA')) {
+            return 'area';
+        }
+        if (str_contains($n, 'NOMBRE')) {
+            return 'nombre';
+        }
+        if (str_contains($n, 'IDENTIFIC') || str_contains($n, 'CEDULA') || str_contains($n, 'DOCUMENTO')) {
+            return 'identificacion';
+        }
+        if ($n === 'FECHA' || str_starts_with($n, 'FECHA ')) {
+            return 'fecha';
+        }
+
+        return $n;
+    }
+
+    public static function normalizeHeaderLabel(string $label): string
+    {
+        $label = mb_strtoupper(trim($label), 'UTF-8');
+        $label = strtr($label, [
+            'Á' => 'A', 'É' => 'E', 'Í' => 'I', 'Ó' => 'O', 'Ú' => 'U', 'Ü' => 'U',
+            'Ñ' => 'N',
+        ]);
+        $label = preg_replace('/[^A-Z0-9]+/', ' ', $label) ?? $label;
+
+        return trim(preg_replace('/\s+/', ' ', $label) ?? $label);
     }
 
     public static function requirementCell(string $nombre): ?string

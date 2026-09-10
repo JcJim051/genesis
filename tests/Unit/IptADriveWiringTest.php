@@ -48,6 +48,12 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString("google_drive.ipt_sheet.", $service);
         $this->assertStringContainsString("google_drive.company_sheet.", $service);
         $this->assertStringContainsString('copyIptTemplate', $service);
+        $this->assertStringContainsString('uploadInspectionEvidenceToDrive', $service);
+        $this->assertStringContainsString('formatoBodyClearA1', $service);
+        $this->assertStringContainsString('alignSeguimientosRow', $service);
+        $this->assertStringContainsString('localEvidencePath', $service);
+        $this->assertStringNotContainsString("url('storage/", $service);
+        $this->assertStringNotContainsString('function inspectionPhotoLink', $service);
         $this->assertStringContainsString('ensureGenesisFolder', $service);
         $this->assertStringContainsString('createDriveFile', $service);
         $this->assertStringContainsString('ensureFileHasParent', $service);
@@ -93,7 +99,12 @@ class IptADriveWiringTest extends TestCase
         $this->assertStringContainsString('function normalizeSheetTitle', $layout);
         $this->assertStringContainsString('function matchSheetTitle', $layout);
         $this->assertStringContainsString('function resolveIptTabTitles', $layout);
-        $this->assertStringContainsString('self::a1($tab, $cell)', $layout);
+        $this->assertStringContainsString('function checklistBody', $layout);
+        $this->assertStringContainsString('function photoCellValue', $layout);
+        $this->assertStringContainsString('function alignSeguimientosRow', $layout);
+        $this->assertStringContainsString('CHECKLIST_START_ROW', $layout);
+        $this->assertStringContainsString('IptFormLayout', $layout);
+        $this->assertStringNotContainsString('QUESTION_ROWS', $layout);
         $this->assertStringNotContainsString("self::FORMATO_TAB . '!' . \$cell", $layout);
     }
 }

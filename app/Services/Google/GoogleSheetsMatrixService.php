@@ -227,7 +227,8 @@ class GoogleSheetsMatrixService
         $shouldWriteFormato = $created || ! $isFollowup;
 
         if ($shouldWriteFormato) {
-            $photoLinks = $this->inspectionPhotoLinks($inspection);
+            $photoLinks = $this->uploadInspectionEvidenceToDrive($http, $inspection, $workerFolderId);
+            $this->clearSheetRange($http, $spreadsheetId, IptDriveLayout::formatoBodyClearA1($tabs['formato']));
             $this->writeValueRanges($http, $spreadsheetId, IptDriveLayout::formatoValueRanges($inspection, $photoLinks, $tabs['formato']));
         }
 
@@ -856,28 +857,32 @@ class GoogleSheetsMatrixService
         if ($rows === []) {
             $rows = [
                 ['MATRIZ DE SEGUMIENTO EVALUACION ERGONOMICA DE ESTACIONES DE TRABAJO'],
-                ['FECHA', 'IDENTIFICACION', 'NOMBRE COMPLETO', 'AREA', 'CARGO', 'HALLAZGOS', 'RECOMENDACIONES', 'REQUERIMIENTOS', 'FECHA DE SEGUIMIENTO', 'SEGUIMIENTO EXITOSO', 'OBSERVACIONES DE SEGUIMEINTO', 'ESTADO'],
+                ['FECHA', 'IDENTIFICACION', 'NOMBRE COMPLETO', 'AREA', 'CARGO', 'HALLAZGOS', 'RECOMENDACIONES', 'REQUERIMIENTOS', 'FECHA DE SEGUIMIENTO', 'SEGUIMIENTO EXITOSO', 'OBSERVACIONES DE SEGUIMIENTO', 'ESTADO'],
             ];
         }
 
         $empleado = IptDriveLayout::empleado($inspection);
         $cedula = trim((string) ($empleado?->cedula ?? ''));
         $nombre = IptDriveLayout::workerDisplayName($inspection);
+        $headerRow = $rows[1] ?? IptDriveLayout::SEGUIMIENTOS_HEADERS;
+        $canonical = IptDriveLayout::seguimientosRow($inspection);
+        $aligned = IptDriveLayout::alignSeguimientosRow($headerRow, $canonical);
 
         if ($append) {
             $rowNumber = $this->nextSeguimientosRowNumber($rows, false);
         } else {
-            $rowNumber = $this->findSeguimientosRowNumber($rows, $cedula, $nombre)
+            $rowNumber = $this->findSeguimientosRowNumber($rows, $cedula, $nombre, $headerRow)
                 ?? $this->nextSeguimientosRowNumber($rows, true);
         }
 
-        $writeRange = IptDriveLayout::a1($tab, 'A' . $rowNumber);
+        $lastCol = IptDriveLayout::columnLetter(max(count($aligned), 12));
+        $writeRange = IptDriveLayout::a1($tab, 'A' . $rowNumber . ':' . $lastCol . $rowNumber);
         $update = $http->put(
             self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($writeRange) . '?valueInputOption=USER_ENTERED',
             [
                 'range' => $writeRange,
                 'majorDimension' => 'ROWS',
-                'values' => [IptDriveLayout::seguimientosRow($inspection)],
+                'values' => [$aligned],
             ]
         );
 
@@ -888,15 +893,25 @@ class GoogleSheetsMatrixService
 
     /**
      * @param  array<int, array<int, mixed>>  $rows
+     * @param  array<int, mixed>  $headerRow
      */
-    private function findSeguimientosRowNumber(array $rows, string $cedula, string $nombre): ?int
+    private function findSeguimientosRowNumber(array $rows, string $cedula, string $nombre, array $headerRow = []): ?int
     {
+        $indexMap = IptDriveLayout::seguimientosHeaderIndexMap(
+            array_map(
+                static fn ($cell) => IptDriveLayout::normalizeHeaderLabel((string) $cell),
+                array_values($headerRow)
+            )
+        );
+        $cedulaIdx = $indexMap['identificacion'] ?? 1;
+        $nombreIdx = $indexMap['nombre'] ?? 2;
+
         foreach ($rows as $index => $row) {
             if ($index < 2) {
                 continue;
             }
-            $rowCedula = trim((string) ($row[1] ?? ''));
-            $rowNombre = trim((string) ($row[2] ?? ''));
+            $rowCedula = trim((string) ($row[$cedulaIdx] ?? ''));
+            $rowNombre = trim((string) ($row[$nombreIdx] ?? ''));
             if ($cedula !== '' && strcasecmp($rowCedula, $cedula) === 0) {
                 return $index + 1;
             }
@@ -940,23 +955,117 @@ class GoogleSheetsMatrixService
     /**
      * @return array{inicial: string, despues: string}
      */
-    private function inspectionPhotoLinks(IptInspection $inspection): array
+    private function uploadInspectionEvidenceToDrive($http, IptInspection $inspection, string $workerFolderId): array
     {
-        $modo = (string) ($inspection->template?->evidencia_fotografica_modo ?? 'none');
-        $inicial = '';
-        $despues = '';
+        $antes = trim((string) ($inspection->foto_antes ?? ''));
+        $general = trim((string) ($inspection->foto_general ?? ''));
+        $despues = trim((string) ($inspection->foto_despues ?? ''));
+        $inicialPath = $antes !== '' ? $antes : $general;
 
-        if ($modo === 'general') {
-            $inicial = $this->inspectionPhotoLink($inspection->foto_general);
-        } elseif ($modo !== 'none') {
-            $inicial = $this->inspectionPhotoLink($inspection->foto_antes);
-            $despues = $this->inspectionPhotoLink($inspection->foto_despues);
+        $folderId = $workerFolderId;
+        if ($inicialPath !== '' || $despues !== '') {
+            $folderId = $this->ensureFolder($http, 'Evidencias', $workerFolderId);
         }
 
         return [
-            'inicial' => $inicial,
-            'despues' => $despues,
+            'inicial' => $this->uploadEvidenceFile($http, $inicialPath, $folderId, 'evidencia-inicial'),
+            'despues' => $this->uploadEvidenceFile($http, $despues, $folderId, 'evidencia-despues'),
         ];
+    }
+
+    private function uploadEvidenceFile($http, string $storagePath, string $folderId, string $basename): string
+    {
+        $local = $this->localEvidencePath($storagePath);
+        if ($local === null) {
+            return '';
+        }
+
+        $filename = $basename . '-' . preg_replace('/[^a-zA-Z0-9._-]+/', '-', basename($local));
+        $mime = mime_content_type($local) ?: 'image/jpeg';
+        $binary = file_get_contents($local);
+        if ($binary === false || $binary === '') {
+            return '';
+        }
+
+        $boundary = 'genesis_ipt_' . bin2hex(random_bytes(8));
+        $metadata = json_encode([
+            'name' => $filename,
+            'parents' => [$folderId],
+        ], JSON_UNESCAPED_UNICODE);
+        $body = '--' . $boundary . "\r\n"
+            . "Content-Type: application/json; charset=UTF-8\r\n\r\n"
+            . $metadata . "\r\n"
+            . '--' . $boundary . "\r\n"
+            . 'Content-Type: ' . $mime . "\r\n\r\n"
+            . $binary . "\r\n"
+            . '--' . $boundary . "--";
+
+        $upload = $http->withBody($body, 'multipart/related; boundary=' . $boundary)
+            ->post('https://www.googleapis.com/upload/drive/v3/files?' . IptDriveLayout::driveWriteQuery([
+                'uploadType' => 'multipart',
+                'fields' => 'id,webViewLink,webContentLink',
+            ]));
+
+        if (! $upload->successful()) {
+            $http->asJson();
+            throw new RuntimeException('No fue posible subir la evidencia fotográfica a Drive: ' . $upload->body());
+        }
+
+        $http->asJson();
+
+        $fileId = IptDriveLayout::sanitizeDriveFileId((string) ($upload->json('id') ?? ''));
+        if ($fileId === '') {
+            return '';
+        }
+
+        $this->ensureFileHasParent($http, $fileId, $folderId);
+        $this->shareDriveFileAnyoneReader($http, $fileId);
+
+        return IptDriveLayout::driveFileViewUrl($fileId);
+    }
+
+    private function shareDriveFileAnyoneReader($http, string $fileId): void
+    {
+        $http->asJson()->post(
+            self::DRIVE_BASE . '/files/' . urlencode($fileId) . '/permissions?' . IptDriveLayout::driveWriteQuery(),
+            [
+                'role' => 'reader',
+                'type' => 'anyone',
+            ]
+        );
+    }
+
+    private function localEvidencePath(string $path): ?string
+    {
+        $path = trim($path);
+        if ($path === '') {
+            return null;
+        }
+        $path = ltrim($path, '/');
+        if (str_contains($path, '..')) {
+            return null;
+        }
+
+        $candidates = [
+            storage_path('app/public/' . $path),
+            storage_path('app/' . $path),
+            public_path('storage/' . $path),
+        ];
+        foreach ($candidates as $full) {
+            if (is_string($full) && is_file($full)) {
+                return $full;
+            }
+        }
+
+        return null;
+    }
+
+    private function clearSheetRange($http, string $spreadsheetId, string $a1): void
+    {
+        $resp = $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($a1) . ':clear');
+        if (! $resp->successful()) {
+            throw new RuntimeException('No fue posible limpiar el bloque de preguntas de FORMATO IPT: ' . $resp->body());
+        }
     }
 
     private function writeSheetValues($http, string $spreadsheetId, string $tab, array $values): void
@@ -977,19 +1086,4 @@ class GoogleSheetsMatrixService
             throw new RuntimeException('No fue posible actualizar la hoja "' . $tab . '": ' . $update->body());
         }
     }
-
-    private function inspectionPhotoLink(?string $path): string
-    {
-        $path = trim((string) $path);
-        if ($path === '') {
-            return '';
-        }
-
-        try {
-            return url('storage/' . ltrim($path, '/'));
-        } catch (\Throwable $e) {
-            return '';
-        }
-    }
-
 }

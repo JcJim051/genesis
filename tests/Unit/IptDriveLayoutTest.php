@@ -106,9 +106,8 @@ class IptDriveLayoutTest extends TestCase
         $this->assertSame('1e6Lr0lzrctebCCr8J5PM8z27TUKVnraU', IptDriveLayout::DEFAULT_TEMPLATE_ID);
         $this->assertSame('FORMATO IPT', IptDriveLayout::FORMATO_TAB);
         $this->assertSame('SEGUIMIENTOS', IptDriveLayout::SEGUIMIENTOS_TAB);
-        $this->assertCount(43, IptDriveLayout::QUESTION_ROWS);
-        $this->assertSame(8, IptDriveLayout::QUESTION_ROWS[1]);
-        $this->assertSame(55, IptDriveLayout::QUESTION_ROWS[43]);
+        $this->assertSame(7, IptDriveLayout::CHECKLIST_START_ROW);
+        $this->assertSame('A7:H250', IptDriveLayout::FORMATO_BODY_CLEAR_RANGE);
     }
 
     public function test_a1_ranges_quote_sheet_names_with_spaces_and_special_chars(): void
