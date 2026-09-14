@@ -91,14 +91,14 @@ class EncuestaEnvioCrudController extends CrudController
     protected function setupCreateOperation(): void
     {
         CRUD::field('encuesta_id')
-            ->type('select')
+            ->type('select2')
             ->label('Encuesta')
             ->entity('encuesta')
             ->model(Encuesta::class)
             ->attribute('titulo');
 
         CRUD::field('cliente_id')
-            ->type('select')
+            ->type('select2')
             ->label('Empresa')
             ->entity('cliente')
             ->model(Cliente::class)
@@ -113,7 +113,7 @@ class EncuestaEnvioCrudController extends CrudController
             });
 
         CRUD::field('sucursal_id')
-            ->type('select')
+            ->type('select2')
             ->label('Planta (opcional)')
             ->entity('sucursal')
             ->model(Sucursal::class)

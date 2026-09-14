@@ -41,7 +41,7 @@ class EncuestaPreguntaCrudController extends CrudController
     protected function setupCreateOperation(): void
     {
         CRUD::field('encuesta_id')
-            ->type('select')
+            ->type('select2')
             ->label('Encuesta')
             ->entity('encuesta')
             ->model(Encuesta::class)

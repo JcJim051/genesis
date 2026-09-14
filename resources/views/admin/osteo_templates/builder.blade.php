@@ -11,7 +11,7 @@
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <label class="form-label">Empresa(s)</label>
-                        <select name="cliente_ids[]" class="form-control" multiple required size="6">
+                        <select name="cliente_ids[]" class="form-control js-select2-companies" multiple required>
                             @foreach($clientes as $cliente)
                                 <option value="{{ $cliente->id }}" @selected(in_array((int) $cliente->id, array_map('intval', old('cliente_ids', $selectedClienteIds ?? [])), true))>
                                     {{ $cliente->nombre }}
@@ -93,8 +93,20 @@
 @endsection
 
 @push('after_scripts')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 (() => {
+    const companySelect = document.querySelector('.js-select2-companies');
+    if (companySelect && window.jQuery && jQuery.fn.select2) {
+        jQuery(companySelect).select2({
+            width: '100%',
+            placeholder: 'Selecciona empresa(s)',
+            closeOnSelect: false,
+            allowClear: false,
+        });
+    }
+
     const root = document.getElementById('sections-root');
     const addSectionBtn = document.getElementById('add-section');
 

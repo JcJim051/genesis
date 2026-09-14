@@ -38,7 +38,7 @@ class PausaPreguntaCrudController extends CrudController
     protected function setupCreateOperation(): void
     {
         CRUD::field('formulario_id')
-            ->type('select')
+            ->type('select2')
             ->label('Pausa')
             ->entity('formulario')
             ->model(PausaFormulario::class)

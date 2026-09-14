@@ -70,10 +70,11 @@
                     </div>
                 @endif
 
+                @if(\App\Services\Ipt\IptFormLayout::hasVisibleQuestionSections($template))
                 <div class="card border p-3 mb-3">
                     <h5 class="mb-3">{{ $template->nombre_publico }}</h5>
 
-                    @foreach($template->sections->sortBy('orden') as $section)
+                    @foreach(\App\Services\Ipt\IptFormLayout::visibleQuestionSections($template) as $section)
                         <div class="mb-3">
                             <h6>{{ $section->titulo }}</h6>
                             <div class="table-responsive">
@@ -87,7 +88,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach($section->questions->sortBy('orden') as $question)
+                                        @foreach(\App\Services\Ipt\IptFormLayout::sectionQuestions($section)->sortBy('orden') as $question)
                                             @php $selected = old('answers.' . $question->id, $answers[$question->id] ?? null); @endphp
                                             <tr>
                                                 <td>{{ $question->texto }}</td>
@@ -102,11 +103,13 @@
                         </div>
                     @endforeach
                 </div>
+                @endif
 
+                @if(\App\Services\Ipt\IptFormLayout::requirementsSectionIsVisible($template))
                 <div class="card border p-3 mb-3">
                     <h6>Requerimientos estación de trabajo</h6>
                     <div class="row">
-                        @foreach($template->requirements->where('activo', true)->sortBy('orden') as $requirement)
+                        @foreach(\App\Services\Ipt\IptFormLayout::activeRequirements($template)->sortBy('orden') as $requirement)
                             <div class="col-md-4">
                                 <label class="form-check mb-2">
                                     <input type="checkbox" class="form-check-input" name="requirements[{{ $requirement->id }}]" value="1" @checked(old('requirements.' . $requirement->id, $requirements[$requirement->id] ?? false))>
@@ -116,6 +119,7 @@
                         @endforeach
                     </div>
                 </div>
+                @endif
 
                 @if(($template->evidencia_fotografica_modo ?? 'none') !== 'none')
                     <div class="card border p-3 mb-3">
@@ -161,35 +165,42 @@
                     </div>
                 @endif
 
+                @if(\App\Services\Ipt\IptFormLayout::captureFieldsRowIsVisible($template, $tipo === 'followup'))
                 <div class="row g-3">
-                    <div class="col-md-6">
-                        <label class="form-label">Hallazgos / observaciones</label>
-                        <textarea class="form-control" name="hallazgos" rows="3">{{ old('hallazgos', $inspection->hallazgos ?? '') }}</textarea>
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Recomendaciones</label>
-                        <textarea class="form-control" name="recomendaciones" rows="3">{{ old('recomendaciones', $inspection->recomendaciones ?? '') }}</textarea>
-                    </div>
-                    @if($template->mostrar_accion)
+                    @if(\App\Services\Ipt\IptFormLayout::showsHallazgosObservacionesField($template))
+                        <div class="col-md-6">
+                            <label class="form-label">{{ \App\Services\Ipt\IptFormLayout::hallazgosObservacionesLabel($template) }}</label>
+                            <textarea class="form-control" name="hallazgos" rows="3">{{ old('hallazgos', $inspection->hallazgos ?? '') }}</textarea>
+                        </div>
+                    @endif
+                    @if(\App\Services\Ipt\IptFormLayout::showsRecomendaciones($template))
+                        <div class="col-md-6">
+                            <label class="form-label">Recomendaciones</label>
+                            <textarea class="form-control" name="recomendaciones" rows="3">{{ old('recomendaciones', $inspection->recomendaciones ?? '') }}</textarea>
+                        </div>
+                    @endif
+                    @if(\App\Services\Ipt\IptFormLayout::showsAccion($template))
                         <div class="col-md-6">
                             <label class="form-label">Acción</label>
                             <textarea class="form-control" name="accion" rows="2">{{ old('accion', $inspection->accion ?? '') }}</textarea>
                         </div>
                     @endif
-                    @if($template->mostrar_responsable)
+                    @if(\App\Services\Ipt\IptFormLayout::showsResponsable($template))
                         <div class="col-md-3">
                             <label class="form-label">Responsable</label>
                             <input class="form-control" name="responsable" value="{{ old('responsable', $inspection->responsable ?? '') }}">
                         </div>
                     @endif
-                    <div class="col-md-3">
-                        <label class="form-label">Estado</label>
-                        <select class="form-control" name="estado">
-                            @foreach(['abierto' => 'Abierto', 'cerrado' => 'Cerrado'] as $value => $label)
-                                <option value="{{ $value }}" @selected(old('estado', $inspection->estado ?? 'abierto') === $value)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
+                    @if(\App\Services\Ipt\IptFormLayout::showsEstado($template))
+                        <div class="col-md-3">
+                            <label class="form-label">Estado</label>
+                            <select class="form-control" name="estado">
+                                @foreach(['abierto' => 'Abierto', 'cerrado' => 'Cerrado'] as $value => $label)
+                                    <option value="{{ $value }}" @selected(old('estado', $inspection->estado ?? 'abierto') === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
                     @if($tipo === 'followup')
                         <div class="col-md-4">
                             <label class="form-label">¿Seguimiento exitoso?</label>
@@ -201,6 +212,7 @@
                         </div>
                     @endif
                 </div>
+                @endif
 
                 <div class="mt-4 d-flex gap-2">
                     <button type="submit" class="btn btn-primary">Guardar inspección</button>

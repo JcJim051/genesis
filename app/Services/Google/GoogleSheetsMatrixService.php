@@ -2,6 +2,7 @@
 
 namespace App\Services\Google;
 
+use App\Models\IptInspection;
 use App\Support\IntegrationSettings;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -10,6 +11,7 @@ class GoogleSheetsMatrixService
 {
     private const DRIVE_BASE = 'https://www.googleapis.com/drive/v3';
     private const SHEETS_BASE = 'https://sheets.googleapis.com/v4/spreadsheets';
+    private const SPREADSHEET_MIME = 'application/vnd.google-apps.spreadsheet';
 
     public function syncIptCompanyMatrix(int $clienteId, string $empresaNombre, array $rows, string $scopeLabel): array
     {
@@ -47,7 +49,10 @@ class GoogleSheetsMatrixService
             $values[] = $row;
         }
 
-        $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/Matriz IPT!A1:Z50000:clear');
+        $http->asJson()->post(
+            IptDriveLayout::sheetsValuesClearUrl($spreadsheetId, 'Matriz IPT!A1:Z50000'),
+            IptDriveLayout::sheetsClearBody()
+        );
         $update = $http->put(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/Matriz IPT!A1?valueInputOption=RAW', [
             'range' => 'Matriz IPT!A1',
             'majorDimension' => 'ROWS',
@@ -103,7 +108,10 @@ class GoogleSheetsMatrixService
         }
 
         $tab = 'Matriz Osteo';
-        $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1:Z50000') . ':clear');
+        $http->asJson()->post(
+            IptDriveLayout::sheetsValuesClearUrl($spreadsheetId, $tab . '!A1:Z50000'),
+            IptDriveLayout::sheetsClearBody()
+        );
         $update = $http->put(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1') . '?valueInputOption=RAW', [
             'range' => $tab . '!A1',
             'majorDimension' => 'ROWS',
@@ -111,7 +119,10 @@ class GoogleSheetsMatrixService
         ]);
         if (! $update->successful()) {
             $tab = 'Matriz IPT';
-            $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1:Z50000') . ':clear');
+            $http->asJson()->post(
+                IptDriveLayout::sheetsValuesClearUrl($spreadsheetId, $tab . '!A1:Z50000'),
+                IptDriveLayout::sheetsClearBody()
+            );
             $update = $http->put(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1') . '?valueInputOption=RAW', [
                 'range' => $tab . '!A1',
                 'majorDimension' => 'ROWS',
@@ -134,6 +145,131 @@ class GoogleSheetsMatrixService
             'spreadsheet_url' => $spreadsheetUrl,
             'rows' => count($rows),
         ];
+    }
+
+    public function syncIptInspectionSheet(IptInspection $inspection): array
+    {
+        $inspection->loadMissing([
+            'empleado.cliente',
+            'empleado.sucursal',
+            'empleado.cargos',
+            'empleado.areas',
+            'programaCaso.empleado.cliente',
+            'programaCaso.empleado.sucursal',
+            'template.sections.questions',
+            'answers',
+            'requirements.requirement',
+            'creator',
+            'initialInspection',
+        ]);
+
+        $rootFolderConfig = trim((string) IntegrationSettings::get('google_drive.root_folder_id', ''));
+        if ($rootFolderConfig === '') {
+            throw new RuntimeException('Falta configurar el ID de carpeta raíz de Google Drive.');
+        }
+
+        $accessToken = $this->accessToken();
+        $http = Http::withToken($accessToken)->acceptJson();
+        $rootFolderId = $this->resolveRootFolderId($http, $rootFolderConfig);
+        if ($rootFolderId === '' || mb_strlen($rootFolderId) < 10) {
+            throw new RuntimeException('No se pudo resolver un ID válido para la carpeta raíz de Drive.');
+        }
+
+        $rootMeta = $this->driveFileMeta($http, $rootFolderId, 'id,name,mimeType,trashed');
+        $rootFolderName = trim((string) ($rootMeta['name'] ?? ''));
+        $oauthEmail = trim((string) IntegrationSettings::get('google_drive.oauth_connected_email', ''));
+
+        $chain = [];
+        $genesisFolderId = $this->ensureGenesisFolder($http, $rootFolderId);
+        if ($genesisFolderId !== $rootFolderId) {
+            $chain[] = [
+                'id' => $genesisFolderId,
+                'name' => IptDriveLayout::GENESIS_FOLDER,
+                'parentId' => $rootFolderId,
+            ];
+        } else {
+            $chain[] = [
+                'id' => $genesisFolderId,
+                'name' => IptDriveLayout::GENESIS_FOLDER,
+                'parentId' => null,
+            ];
+        }
+
+        $workerFolderId = $genesisFolderId;
+        foreach (IptDriveLayout::pathAfterGenesis($inspection) as $segment) {
+            $parentId = $workerFolderId;
+            $workerFolderId = $this->ensureFolder($http, $segment, $parentId);
+            $chain[] = [
+                'id' => $workerFolderId,
+                'name' => $segment,
+                'parentId' => $parentId,
+            ];
+        }
+
+        $this->verifyDriveFolderChain($http, $chain);
+
+        $spreadsheetName = IptDriveLayout::spreadsheetTitle($inspection);
+        $settingsKey = IptDriveLayout::workerSheetSettingsKey($inspection);
+        $resolved = $this->resolveWorkerSpreadsheet($http, $inspection, $spreadsheetName, $workerFolderId, $settingsKey);
+        $spreadsheetId = $resolved['id'];
+        $created = $resolved['created'];
+        $this->ensureFileHasParent($http, $spreadsheetId, $workerFolderId);
+        $this->assertFileParentOrFail(
+            $http,
+            $spreadsheetId,
+            $workerFolderId,
+            'La hoja IPT no quedó dentro de la carpeta del trabajador. No se reporta éxito hasta que Drive confirme la ubicación.'
+        );
+        $tabs = $this->resolveIptTabsFromGoogle($http, $spreadsheetId);
+        $displayPath = IptDriveLayout::displayPath($inspection);
+        $payload = IptDriveLayout::iptSyncSuccessPayload(
+            $spreadsheetId,
+            $spreadsheetName,
+            $displayPath,
+            $workerFolderId,
+            $rootFolderId,
+            $rootFolderName,
+            $oauthEmail
+        );
+
+        $isFollowup = IptDriveLayout::isFollowup($inspection);
+        $shouldWriteFormato = $created || ! $isFollowup;
+
+        if ($shouldWriteFormato) {
+            $photoLinks = $this->uploadInspectionEvidenceToDrive($http, $inspection, $workerFolderId);
+            $this->clearSheetRange($http, $spreadsheetId, IptDriveLayout::formatoBodyClearA1($tabs['formato']));
+            $this->writeValueRanges($http, $spreadsheetId, IptDriveLayout::formatoValueRanges($inspection, $photoLinks, $tabs['formato']));
+        }
+
+        $this->upsertSeguimientosRow($http, $spreadsheetId, $inspection, $isFollowup && ! $created, $tabs['seguimientos']);
+
+        $meta = json_encode(array_merge($payload, [
+            'updated_at' => now()->toDateTimeString(),
+        ]));
+        IntegrationSettings::set($settingsKey, $meta);
+        IntegrationSettings::set('google_drive.ipt_sheet.' . $inspection->id, $meta);
+
+        return $payload;
+    }
+
+    public function iptTemplateSpreadsheetId(): string
+    {
+        $fromSettings = trim((string) IntegrationSettings::get('google_drive.ipt_template_spreadsheet_id', ''));
+        if ($fromSettings !== '') {
+            return IptDriveLayout::extractSpreadsheetId($fromSettings);
+        }
+
+        $fromConfig = trim((string) config('services.google.ipt_template_spreadsheet_id', IptDriveLayout::DEFAULT_TEMPLATE_ID));
+        if ($fromConfig !== '') {
+            return IptDriveLayout::extractSpreadsheetId($fromConfig);
+        }
+
+        return IptDriveLayout::DEFAULT_TEMPLATE_ID;
+    }
+
+    public function refreshAccessToken(): string
+    {
+        return $this->accessToken();
     }
 
     private function accessToken(): string
@@ -177,30 +313,38 @@ class GoogleSheetsMatrixService
             $parentId
         );
 
-        $list = $http->get(self::DRIVE_BASE . '/files', [
+        $list = $http->get(self::DRIVE_BASE . '/files', IptDriveLayout::driveListQueryParams([
             'q' => $query,
-            'fields' => 'files(id,name)',
+            'fields' => 'files(id,name,parents)',
             'pageSize' => 1,
-            'supportsAllDrives' => 'true',
-            'includeItemsFromAllDrives' => 'true',
-        ]);
+        ]));
 
         if ($list->successful() && ! empty($list->json('files.0.id'))) {
-            return (string) $list->json('files.0.id');
+            $id = (string) $list->json('files.0.id');
+            $this->ensureFileHasParent($http, $id, $parentId);
+
+            return $id;
         }
 
-        $create = $http->post(self::DRIVE_BASE . '/files', [
+        $created = $this->createDriveFile($http, [
             'name' => $name,
             'mimeType' => 'application/vnd.google-apps.folder',
             'parents' => [$parentId],
-            'supportsAllDrives' => true,
         ]);
 
-        if (! $create->successful()) {
-            throw new RuntimeException('No fue posible crear carpeta en Drive: ' . $create->body());
+        $id = (string) ($created['id'] ?? '');
+        if ($id === '') {
+            throw new RuntimeException('Google Drive no devolvió ID al crear la carpeta «' . $name . '».');
         }
 
-        return (string) $create->json('id');
+        $this->assertFileParentOrFail(
+            $http,
+            $id,
+            $parentId,
+            'La carpeta «' . $name . '» se creó, pero Drive no la dejó dentro de la carpeta padre esperada.'
+        );
+
+        return $id;
     }
 
     private function resolveRootFolderId($http, string $configured): string
@@ -222,10 +366,11 @@ class GoogleSheetsMatrixService
 
         // 1) Si ya es un ID válido y accesible, lo usamos.
         if (! $treatAsName) {
-            $check = $http->get(self::DRIVE_BASE . '/files/' . urlencode($configured), [
-                'fields' => 'id,name,mimeType',
-                'supportsAllDrives' => 'true',
-            ]);
+            $check = $http->get(
+                self::DRIVE_BASE . '/files/' . urlencode($configured) . '?' . IptDriveLayout::driveWriteQuery([
+                    'fields' => 'id,name,mimeType',
+                ])
+            );
             if ($check->successful() && $check->json('mimeType') === 'application/vnd.google-apps.folder') {
                 return (string) $check->json('id');
             }
@@ -238,13 +383,11 @@ class GoogleSheetsMatrixService
             str_replace("'", "\\'", $folderName)
         );
 
-        $list = $http->get(self::DRIVE_BASE . '/files', [
+        $list = $http->get(self::DRIVE_BASE . '/files', IptDriveLayout::driveListQueryParams([
             'q' => $query,
             'fields' => 'files(id,name)',
             'pageSize' => 1,
-            'supportsAllDrives' => 'true',
-            'includeItemsFromAllDrives' => 'true',
-        ]);
+        ]));
 
         if ($list->successful() && ! empty($list->json('files.0.id'))) {
             $id = (string) $list->json('files.0.id');
@@ -252,18 +395,18 @@ class GoogleSheetsMatrixService
             return $id;
         }
 
-        // 3) Si no existe, la creamos en raíz de la service account.
-        $create = $http->post(self::DRIVE_BASE . '/files', [
+        // 3) Si no existe, la creamos en Mi unidad de la cuenta OAuth conectada.
+        $created = $this->createDriveFile($http, [
             'name' => $folderName,
             'mimeType' => 'application/vnd.google-apps.folder',
             'parents' => ['root'],
         ]);
 
-        if (! $create->successful()) {
-            throw new RuntimeException('No fue posible resolver/crear carpeta raíz en Drive: ' . $create->body());
+        $id = (string) ($created['id'] ?? '');
+        if ($id === '') {
+            throw new RuntimeException('No fue posible resolver/crear carpeta raíz en Drive.');
         }
 
-        $id = (string) $create->json('id');
         IntegrationSettings::set('google_drive.root_folder_id', $id);
         return $id;
     }
@@ -276,11 +419,11 @@ class GoogleSheetsMatrixService
             $parentId
         );
 
-        $list = $http->get(self::DRIVE_BASE . '/files', [
+        $list = $http->get(self::DRIVE_BASE . '/files', IptDriveLayout::driveListQueryParams([
             'q' => $query,
             'fields' => 'files(id,name)',
             'pageSize' => 1,
-        ]);
+        ]));
 
         if ($list->successful() && ! empty($list->json('files.0.id'))) {
             return [
@@ -289,17 +432,16 @@ class GoogleSheetsMatrixService
             ];
         }
 
-        $create = $http->post(self::DRIVE_BASE . '/files', [
+        $created = $this->createDriveFile($http, [
             'name' => $name,
             'mimeType' => 'application/vnd.google-apps.spreadsheet',
             'parents' => [$parentId],
         ]);
 
-        if (! $create->successful()) {
-            throw new RuntimeException('No fue posible crear Google Sheet: ' . $create->body());
+        $id = (string) ($created['id'] ?? '');
+        if ($id === '') {
+            throw new RuntimeException('No fue posible crear Google Sheet: Drive no devolvió ID.');
         }
-
-        $id = (string) $create->json('id');
 
         // Renombrar hoja por defecto.
         $meta = $http->get(self::SHEETS_BASE . '/' . $id);
@@ -323,4 +465,640 @@ class GoogleSheetsMatrixService
         return ['id' => $id, 'name' => $name];
     }
 
+    private function ensureGenesisFolder($http, string $rootFolderId): string
+    {
+        $meta = $this->driveFileMeta($http, $rootFolderId, 'id,name,mimeType,trashed');
+        $rootName = trim((string) ($meta['name'] ?? ''));
+        if (strcasecmp($rootName, IptDriveLayout::GENESIS_FOLDER) === 0) {
+            return $rootFolderId;
+        }
+
+        return $this->ensureFolder($http, IptDriveLayout::GENESIS_FOLDER, $rootFolderId);
+    }
+
+    /**
+     * @return array{id: string, created: bool}
+     */
+    private function resolveWorkerSpreadsheet($http, IptInspection $inspection, string $spreadsheetName, string $workerFolderId, string $settingsKey): array
+    {
+        $storedId = $this->storedSpreadsheetId($settingsKey, $inspection);
+        if ($storedId !== '') {
+            $check = $http->get(
+                self::DRIVE_BASE . '/files/' . urlencode($storedId) . '?' . IptDriveLayout::driveWriteQuery([
+                    'fields' => 'id,name,trashed,mimeType,parents',
+                ])
+            );
+            if ($check->successful() && ! $check->json('trashed')) {
+                $mime = (string) ($check->json('mimeType') ?? '');
+                if ($mime === self::SPREADSHEET_MIME && $this->spreadsheetHasIptTabs($http, $storedId)) {
+                    $currentName = (string) ($check->json('name') ?? '');
+                    if ($currentName !== '' && $currentName !== $spreadsheetName) {
+                        $http->asJson()->patch(
+                            self::DRIVE_BASE . '/files/' . urlencode($storedId) . '?' . IptDriveLayout::driveWriteQuery(),
+                            IptDriveLayout::driveFileMetadata(['name' => $spreadsheetName])
+                        );
+                    }
+
+                    return ['id' => $storedId, 'created' => false];
+                }
+
+                $this->trashStaleSpreadsheet($http, $storedId);
+            }
+        }
+
+        $existing = $this->findSpreadsheetInFolder($http, $spreadsheetName, $workerFolderId);
+        if ($existing !== '') {
+            if ($this->spreadsheetHasIptTabs($http, $existing)) {
+                return ['id' => $existing, 'created' => false];
+            }
+
+            $this->trashStaleSpreadsheet($http, $existing);
+        }
+
+        return [
+            'id' => $this->copyIptTemplate($http, $spreadsheetName, $workerFolderId),
+            'created' => true,
+        ];
+    }
+
+    private function storedSpreadsheetId(string $settingsKey, IptInspection $inspection): string
+    {
+        $cfg = json_decode((string) IntegrationSettings::get($settingsKey, ''), true);
+        $id = trim((string) ($cfg['spreadsheet_id'] ?? ''));
+        if ($id !== '') {
+            return $id;
+        }
+
+        $legacy = json_decode((string) IntegrationSettings::get('google_drive.ipt_sheet.' . $inspection->id, ''), true);
+
+        return trim((string) ($legacy['spreadsheet_id'] ?? ''));
+    }
+
+    private function findSpreadsheetInFolder($http, string $name, string $parentId): string
+    {
+        $query = sprintf(
+            "name = '%s' and '%s' in parents and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
+            str_replace("'", "\\'", $name),
+            $parentId
+        );
+
+        $list = $http->get(self::DRIVE_BASE . '/files', IptDriveLayout::driveListQueryParams([
+            'q' => $query,
+            'fields' => 'files(id,name,parents)',
+            'pageSize' => 1,
+        ]));
+
+        if ($list->successful() && ! empty($list->json('files.0.id'))) {
+            return (string) $list->json('files.0.id');
+        }
+
+        return '';
+    }
+
+    private function copyIptTemplate($http, string $name, string $parentId): string
+    {
+        $templateId = $this->iptTemplateSpreadsheetId();
+        if ($templateId === '') {
+            throw new RuntimeException('Falta el ID de la plantilla IPT de Google Sheets.');
+        }
+
+        $copy = $http->asJson()->post(
+            self::DRIVE_BASE . '/files/' . urlencode($templateId) . '/copy?' . IptDriveLayout::driveWriteQuery([
+                'fields' => 'id,parents,mimeType',
+            ]),
+            IptDriveLayout::driveFileMetadata([
+                'name' => $name,
+                'mimeType' => self::SPREADSHEET_MIME,
+                'parents' => [$parentId],
+            ])
+        );
+
+        if (! $copy->successful()) {
+            throw new RuntimeException(
+                'No fue posible copiar la plantilla IPT en Drive. Comparte el spreadsheet de plantilla con la cuenta Google conectada y verifica el ID configurado. Detalle: ' . $copy->body()
+            );
+        }
+
+        $id = (string) $copy->json('id');
+        if ($id === '') {
+            throw new RuntimeException('Google Drive no devolvió ID al copiar la plantilla IPT.');
+        }
+
+        return $this->ensureCopiedFileIsSpreadsheet($http, $id, $name, $parentId);
+    }
+
+    /**
+     * Verify the copy is a native Google Sheet; convert/re-copy if the template was xlsx.
+     */
+    private function ensureCopiedFileIsSpreadsheet($http, string $id, string $name, string $parentId): string
+    {
+        $meta = $this->driveFileMeta($http, $id, 'id,mimeType,parents,name');
+        $mime = (string) ($meta['mimeType'] ?? '');
+
+        if ($mime !== self::SPREADSHEET_MIME) {
+            $convert = $http->asJson()->post(
+                self::DRIVE_BASE . '/files/' . urlencode($id) . '/copy?' . IptDriveLayout::driveWriteQuery([
+                    'fields' => 'id,mimeType,parents',
+                ]),
+                IptDriveLayout::driveFileMetadata([
+                    'name' => $name,
+                    'mimeType' => self::SPREADSHEET_MIME,
+                    'parents' => [$parentId],
+                ])
+            );
+
+            $convertedId = (string) ($convert->json('id') ?? '');
+            if (! $convert->successful() || $convertedId === '') {
+                throw new RuntimeException(
+                    'La copia de la plantilla IPT no es un Google Sheet nativo (mimeType='
+                    . ($mime !== '' ? $mime : 'desconocido')
+                    . ') y no se pudo convertir. Convierte el archivo plantilla a Google Sheets '
+                    . '(Archivo > Guardar como Google Sheets) o configura el ID de un spreadsheet nativo. Detalle: '
+                    . $convert->body()
+                );
+            }
+
+            $this->trashStaleSpreadsheet($http, $id);
+            $id = $convertedId;
+            $meta = $this->driveFileMeta($http, $id, 'id,mimeType,parents,name');
+            $mime = (string) ($meta['mimeType'] ?? '');
+        }
+
+        if ($mime !== self::SPREADSHEET_MIME) {
+            throw new RuntimeException(
+                'La copia de la plantilla IPT no es un Google Sheet nativo (mimeType='
+                . ($mime !== '' ? $mime : 'desconocido')
+                . '). Convierte el archivo plantilla a Google Sheets '
+                . '(Archivo > Guardar como Google Sheets) o configura el ID de un spreadsheet nativo.'
+            );
+        }
+
+        $this->ensureFileHasParent($http, $id, $parentId);
+        $this->assertFileParentOrFail(
+            $http,
+            $id,
+            $parentId,
+            'La plantilla IPT se copió, pero Drive no la dejó en la carpeta del trabajador.'
+        );
+
+        return $id;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function driveFileMeta($http, string $fileId, string $fields): array
+    {
+        $resp = $http->get(
+            self::DRIVE_BASE . '/files/' . urlencode($fileId) . '?' . IptDriveLayout::driveWriteQuery([
+                'fields' => $fields,
+            ])
+        );
+        if (! $resp->successful()) {
+            throw new RuntimeException('No fue posible leer el archivo IPT en Drive: ' . $resp->body());
+        }
+
+        return $resp->json() ?? [];
+    }
+
+    /**
+     * Create a Drive file/folder. supportsAllDrives is only a query param, never JSON metadata.
+     *
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>
+     */
+    private function createDriveFile($http, array $metadata): array
+    {
+        $body = IptDriveLayout::driveFileMetadata($metadata);
+        $create = $http->asJson()->post(
+            self::DRIVE_BASE . '/files?' . IptDriveLayout::driveWriteQuery([
+                'fields' => 'id,name,parents,mimeType',
+            ]),
+            $body
+        );
+
+        if (! $create->successful()) {
+            throw new RuntimeException('No fue posible crear archivo/carpeta en Drive: ' . $create->body());
+        }
+
+        $id = (string) ($create->json('id') ?? '');
+        if ($id === '') {
+            throw new RuntimeException('Google Drive no devolvió ID al crear el archivo.');
+        }
+
+        $requestedParent = isset($body['parents'][0]) ? (string) $body['parents'][0] : '';
+        if ($this->shouldEnforceParent($requestedParent)) {
+            $this->ensureFileHasParent($http, $id, $requestedParent);
+        }
+
+        return $this->driveFileMeta($http, $id, 'id,name,parents,mimeType,trashed');
+    }
+
+    private function shouldEnforceParent(string $parentId): bool
+    {
+        $parentId = trim($parentId);
+
+        return $parentId !== '' && strcasecmp($parentId, 'root') !== 0 && mb_strlen($parentId) >= 10;
+    }
+
+    /**
+     * Move the file with addParents/removeParents if Drive ignored `parents` on create/copy.
+     */
+    private function ensureFileHasParent($http, string $fileId, string $parentId): void
+    {
+        if (! $this->shouldEnforceParent($parentId)) {
+            return;
+        }
+
+        $meta = $this->driveFileMeta($http, $fileId, 'id,parents,name,mimeType');
+        $parents = $meta['parents'] ?? [];
+        if (IptDriveLayout::parentsInclude($parents, $parentId)) {
+            return;
+        }
+
+        $query = [
+            'addParents' => $parentId,
+            'fields' => 'id,parents',
+        ];
+        if (is_array($parents) && $parents !== []) {
+            $query['removeParents'] = implode(',', array_map('strval', $parents));
+        }
+
+        $move = $http->asJson()->patch(
+            self::DRIVE_BASE . '/files/' . urlencode($fileId) . '?' . IptDriveLayout::driveWriteQuery($query),
+            (object) []
+        );
+        if (! $move->successful()) {
+            throw new RuntimeException(
+                'No se pudo mover el archivo a la carpeta de Drive esperada (addParents='
+                . $parentId . '): ' . $move->body()
+            );
+        }
+    }
+
+    private function assertFileParentOrFail($http, string $fileId, string $parentId, string $message): void
+    {
+        if (! $this->shouldEnforceParent($parentId)) {
+            return;
+        }
+
+        $meta = $this->driveFileMeta($http, $fileId, 'id,name,parents,mimeType,trashed');
+        if (! IptDriveLayout::parentsInclude($meta['parents'] ?? [], $parentId)) {
+            throw new RuntimeException(
+                $message
+                . ' Archivo: ' . (string) ($meta['name'] ?? $fileId)
+                . '. Carpeta esperada: ' . IptDriveLayout::folderUrl($parentId)
+            );
+        }
+    }
+
+    /**
+     * @param  list<array{id: string, name: string, parentId: ?string}>  $segments
+     */
+    private function verifyDriveFolderChain($http, array $segments): void
+    {
+        foreach ($segments as $segment) {
+            $id = (string) ($segment['id'] ?? '');
+            $expectedName = (string) ($segment['name'] ?? '');
+            $parentId = $segment['parentId'] ?? null;
+
+            if ($id === '' || mb_strlen($id) < 10) {
+                throw new RuntimeException('La ruta IPT en Drive quedó con un ID de carpeta inválido (' . $expectedName . ').');
+            }
+
+            $meta = $this->driveFileMeta($http, $id, 'id,name,mimeType,trashed,parents');
+            if (! empty($meta['trashed'])) {
+                throw new RuntimeException('La carpeta «' . $expectedName . '» está en la papelera de Drive. No se reporta éxito.');
+            }
+            if (($meta['mimeType'] ?? '') !== 'application/vnd.google-apps.folder') {
+                throw new RuntimeException('El ID de «' . $expectedName . '» no es una carpeta de Drive.');
+            }
+
+            $actualName = trim((string) ($meta['name'] ?? ''));
+            if ($expectedName !== '' && strcasecmp($actualName, $expectedName) !== 0) {
+                throw new RuntimeException(
+                    'Drive devolvió la carpeta «' . $actualName . '» donde se esperaba «' . $expectedName . '».'
+                );
+            }
+
+            if (is_string($parentId) && $this->shouldEnforceParent($parentId)) {
+                if (! IptDriveLayout::parentsInclude($meta['parents'] ?? [], $parentId)) {
+                    throw new RuntimeException(
+                        'La carpeta «' . $expectedName . '» no está dentro de la carpeta padre verificada. '
+                        . 'Revisa la carpeta raíz y la cuenta OAuth configuradas. '
+                        . 'Ubicación real: ' . IptDriveLayout::folderUrl($id)
+                    );
+                }
+            }
+        }
+    }
+
+    private function trashStaleSpreadsheet($http, string $fileId): void
+    {
+        $http->asJson()->patch(
+            self::DRIVE_BASE . '/files/' . urlencode($fileId) . '?' . IptDriveLayout::driveWriteQuery(),
+            IptDriveLayout::driveFileMetadata(['trashed' => true])
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function fetchSpreadsheetSheetTitles($http, string $spreadsheetId): array
+    {
+        $meta = $http->get(self::SHEETS_BASE . '/' . $spreadsheetId, [
+            'fields' => 'sheets.properties(sheetId,title),spreadsheetId',
+        ]);
+        if (! $meta->successful()) {
+            throw new RuntimeException(
+                'No fue posible leer las pestañas del spreadsheet IPT (id=' . $spreadsheetId . '): ' . $meta->body()
+            );
+        }
+
+        return IptDriveLayout::titlesFromSpreadsheetMeta($meta->json() ?? []);
+    }
+
+    /**
+     * @return array{formato: string, seguimientos: string}
+     */
+    private function resolveIptTabsFromGoogle($http, string $spreadsheetId): array
+    {
+        return IptDriveLayout::resolveIptTabTitles($this->fetchSpreadsheetSheetTitles($http, $spreadsheetId));
+    }
+
+    private function spreadsheetHasIptTabs($http, string $spreadsheetId): bool
+    {
+        try {
+            $this->resolveIptTabsFromGoogle($http, $spreadsheetId);
+
+            return true;
+        } catch (RuntimeException $e) {
+            return false;
+        }
+    }
+
+    /**
+     * @param  list<array{range: string, values: array<int, array<int, mixed>>}>  $ranges
+     */
+    private function writeValueRanges($http, string $spreadsheetId, array $ranges): void
+    {
+        if ($ranges === []) {
+            return;
+        }
+
+        $resp = $http->post(self::SHEETS_BASE . '/' . $spreadsheetId . '/values:batchUpdate', [
+            'valueInputOption' => 'USER_ENTERED',
+            'data' => $ranges,
+        ]);
+
+        if (! $resp->successful()) {
+            throw new RuntimeException('No fue posible actualizar FORMATO IPT: ' . $resp->body());
+        }
+    }
+
+    private function upsertSeguimientosRow($http, string $spreadsheetId, IptInspection $inspection, bool $append, ?string $seguimientosTab = null): void
+    {
+        $tab = ($seguimientosTab !== null && $seguimientosTab !== '')
+            ? $seguimientosTab
+            : IptDriveLayout::SEGUIMIENTOS_TAB;
+        $read = $http->get(self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode(IptDriveLayout::a1($tab, 'A1:L500')));
+        $rows = $read->successful() ? ($read->json('values') ?? []) : [];
+        if ($rows === []) {
+            $rows = [
+                ['MATRIZ DE SEGUMIENTO EVALUACION ERGONOMICA DE ESTACIONES DE TRABAJO'],
+                ['FECHA', 'IDENTIFICACION', 'NOMBRE COMPLETO', 'AREA', 'CARGO', 'HALLAZGOS', 'RECOMENDACIONES', 'REQUERIMIENTOS', 'FECHA DE SEGUIMIENTO', 'SEGUIMIENTO EXITOSO', 'OBSERVACIONES DE SEGUIMIENTO', 'ESTADO'],
+            ];
+        }
+
+        $empleado = IptDriveLayout::empleado($inspection);
+        $cedula = trim((string) ($empleado?->cedula ?? ''));
+        $nombre = IptDriveLayout::workerDisplayName($inspection);
+        $headerRow = $rows[1] ?? IptDriveLayout::SEGUIMIENTOS_HEADERS;
+        $canonical = IptDriveLayout::seguimientosRow($inspection);
+        $aligned = IptDriveLayout::alignSeguimientosRow($headerRow, $canonical);
+
+        if ($append) {
+            $rowNumber = $this->nextSeguimientosRowNumber($rows, false);
+        } else {
+            $rowNumber = $this->findSeguimientosRowNumber($rows, $cedula, $nombre, $headerRow)
+                ?? $this->nextSeguimientosRowNumber($rows, true);
+        }
+
+        $lastCol = IptDriveLayout::columnLetter(max(count($aligned), 12));
+        $writeRange = IptDriveLayout::a1($tab, 'A' . $rowNumber . ':' . $lastCol . $rowNumber);
+        $update = $http->put(
+            self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($writeRange) . '?valueInputOption=USER_ENTERED',
+            [
+                'range' => $writeRange,
+                'majorDimension' => 'ROWS',
+                'values' => [$aligned],
+            ]
+        );
+
+        if (! $update->successful()) {
+            throw new RuntimeException('No fue posible actualizar SEGUIMIENTOS: ' . $update->body());
+        }
+    }
+
+    /**
+     * @param  array<int, array<int, mixed>>  $rows
+     * @param  array<int, mixed>  $headerRow
+     */
+    private function findSeguimientosRowNumber(array $rows, string $cedula, string $nombre, array $headerRow = []): ?int
+    {
+        $indexMap = IptDriveLayout::seguimientosHeaderIndexMap(
+            array_map(
+                static fn ($cell) => IptDriveLayout::normalizeHeaderLabel((string) $cell),
+                array_values($headerRow)
+            )
+        );
+        $cedulaIdx = $indexMap['identificacion'] ?? 1;
+        $nombreIdx = $indexMap['nombre'] ?? 2;
+
+        foreach ($rows as $index => $row) {
+            if ($index < 2) {
+                continue;
+            }
+            $rowCedula = trim((string) ($row[$cedulaIdx] ?? ''));
+            $rowNombre = trim((string) ($row[$nombreIdx] ?? ''));
+            if ($cedula !== '' && strcasecmp($rowCedula, $cedula) === 0) {
+                return $index + 1;
+            }
+            if ($cedula === '' && $nombre !== '' && strcasecmp($rowNombre, $nombre) === 0) {
+                return $index + 1;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int, array<int, mixed>>  $rows
+     */
+    private function nextSeguimientosRowNumber(array $rows, bool $reuseBlankIdentity): int
+    {
+        $lastUsed = 2;
+        foreach ($rows as $index => $row) {
+            if ($index < 2) {
+                continue;
+            }
+            $hasIdentity = trim((string) ($row[1] ?? '')) !== '' || trim((string) ($row[2] ?? '')) !== '';
+            $hasAny = false;
+            foreach ($row as $cell) {
+                if (trim((string) $cell) !== '') {
+                    $hasAny = true;
+                    break;
+                }
+            }
+            if ($reuseBlankIdentity && $hasAny && ! $hasIdentity) {
+                return $index + 1;
+            }
+            if ($hasAny) {
+                $lastUsed = $index + 1;
+            }
+        }
+
+        return $lastUsed + 1;
+    }
+
+    /**
+     * @return array{inicial: string, despues: string}
+     */
+    private function uploadInspectionEvidenceToDrive($http, IptInspection $inspection, string $workerFolderId): array
+    {
+        $antes = trim((string) ($inspection->foto_antes ?? ''));
+        $general = trim((string) ($inspection->foto_general ?? ''));
+        $despues = trim((string) ($inspection->foto_despues ?? ''));
+        $inicialPath = $antes !== '' ? $antes : $general;
+
+        $folderId = $workerFolderId;
+        if ($inicialPath !== '' || $despues !== '') {
+            $folderId = $this->ensureFolder($http, 'Evidencias', $workerFolderId);
+        }
+
+        return [
+            'inicial' => $this->uploadEvidenceFile($http, $inicialPath, $folderId, 'evidencia-inicial'),
+            'despues' => $this->uploadEvidenceFile($http, $despues, $folderId, 'evidencia-despues'),
+        ];
+    }
+
+    private function uploadEvidenceFile($http, string $storagePath, string $folderId, string $basename): string
+    {
+        $local = $this->localEvidencePath($storagePath);
+        if ($local === null) {
+            return '';
+        }
+
+        $filename = $basename . '-' . preg_replace('/[^a-zA-Z0-9._-]+/', '-', basename($local));
+        $mime = mime_content_type($local) ?: 'image/jpeg';
+        $binary = file_get_contents($local);
+        if ($binary === false || $binary === '') {
+            return '';
+        }
+
+        $boundary = 'genesis_ipt_' . bin2hex(random_bytes(8));
+        $metadata = json_encode([
+            'name' => $filename,
+            'parents' => [$folderId],
+        ], JSON_UNESCAPED_UNICODE);
+        $body = '--' . $boundary . "\r\n"
+            . "Content-Type: application/json; charset=UTF-8\r\n\r\n"
+            . $metadata . "\r\n"
+            . '--' . $boundary . "\r\n"
+            . 'Content-Type: ' . $mime . "\r\n\r\n"
+            . $binary . "\r\n"
+            . '--' . $boundary . "--";
+
+        $upload = $http->withBody($body, 'multipart/related; boundary=' . $boundary)
+            ->post('https://www.googleapis.com/upload/drive/v3/files?' . IptDriveLayout::driveWriteQuery([
+                'uploadType' => 'multipart',
+                'fields' => 'id,webViewLink,webContentLink',
+            ]));
+
+        if (! $upload->successful()) {
+            $http->asJson();
+            throw new RuntimeException('No fue posible subir la evidencia fotográfica a Drive: ' . $upload->body());
+        }
+
+        $http->asJson();
+
+        $fileId = IptDriveLayout::sanitizeDriveFileId((string) ($upload->json('id') ?? ''));
+        if ($fileId === '') {
+            return '';
+        }
+
+        $this->ensureFileHasParent($http, $fileId, $folderId);
+        $this->shareDriveFileAnyoneReader($http, $fileId);
+
+        return IptDriveLayout::driveFileViewUrl($fileId);
+    }
+
+    private function shareDriveFileAnyoneReader($http, string $fileId): void
+    {
+        $http->asJson()->post(
+            self::DRIVE_BASE . '/files/' . urlencode($fileId) . '/permissions?' . IptDriveLayout::driveWriteQuery(),
+            [
+                'role' => 'reader',
+                'type' => 'anyone',
+            ]
+        );
+    }
+
+    private function localEvidencePath(string $path): ?string
+    {
+        $path = trim($path);
+        if ($path === '') {
+            return null;
+        }
+        $path = ltrim($path, '/');
+        if (str_contains($path, '..')) {
+            return null;
+        }
+
+        $candidates = [
+            storage_path('app/public/' . $path),
+            storage_path('app/' . $path),
+            public_path('storage/' . $path),
+        ];
+        foreach ($candidates as $full) {
+            if (is_string($full) && is_file($full)) {
+                return $full;
+            }
+        }
+
+        return null;
+    }
+
+    private function clearSheetRange($http, string $spreadsheetId, string $a1): void
+    {
+        $resp = $http->asJson()->post(
+            IptDriveLayout::sheetsValuesClearUrl($spreadsheetId, $a1),
+            IptDriveLayout::sheetsClearBody()
+        );
+        if (! $resp->successful()) {
+            throw new RuntimeException('No fue posible limpiar el bloque de preguntas de FORMATO IPT: ' . $resp->body());
+        }
+    }
+
+    private function writeSheetValues($http, string $spreadsheetId, string $tab, array $values): void
+    {
+        $clearRange = $tab . '!A1:Z50000';
+        $http->asJson()->post(
+            IptDriveLayout::sheetsValuesClearUrl($spreadsheetId, $clearRange),
+            IptDriveLayout::sheetsClearBody()
+        );
+
+        $update = $http->put(
+            self::SHEETS_BASE . '/' . $spreadsheetId . '/values/' . rawurlencode($tab . '!A1') . '?valueInputOption=RAW',
+            [
+                'range' => $tab . '!A1',
+                'majorDimension' => 'ROWS',
+                'values' => $values,
+            ]
+        );
+
+        if (! $update->successful()) {
+            throw new RuntimeException('No fue posible actualizar la hoja "' . $tab . '": ' . $update->body());
+        }
+    }
 }

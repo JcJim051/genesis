@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\FetchesEmpleadosAjax;
 use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Http\Requests\EmpleadoAreaRequest;
 use App\Models\EmpleadoArea;
@@ -13,6 +14,7 @@ use Illuminate\Validation\ValidationException;
 class EmpleadoAreaCrudController extends CrudController
 {
     use TenantScope;
+    use FetchesEmpleadosAjax;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation { store as traitStore; }
     use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; edit as traitEdit; }
@@ -51,12 +53,9 @@ class EmpleadoAreaCrudController extends CrudController
     {
         CRUD::setValidation(EmpleadoAreaRequest::class);
 
-        CRUD::field('empleado_id')
-            ->type('select')
-            ->label('Persona')
-            ->entity('empleado')
-            ->model(\App\Models\Empleado::class)
-            ->attribute('nombre');
+        CRUD::addField($this->empleadoSelect2AjaxField(backpack_url('empleado-area/fetch/empleado'), [
+            'allows_null' => false,
+        ]));
 
         CRUD::field('area')->type('text')->label('Área');
         CRUD::field('fecha_inicio')->type('date')->label('Fecha inicio');
@@ -66,6 +65,17 @@ class EmpleadoAreaCrudController extends CrudController
     protected function setupUpdateOperation(): void
     {
         $this->setupCreateOperation();
+    }
+
+    protected function authorizeEmpleadoAjaxFetch(): void
+    {
+        if (! backpack_user()) {
+            abort(403);
+        }
+
+        if (! $this->crud->hasAccess('create') && ! $this->crud->hasAccess('update')) {
+            abort(403);
+        }
     }
 
     public function store()

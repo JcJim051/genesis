@@ -52,6 +52,7 @@ Route::group([
     Route::get('integraciones/google-drive/oauth/redirect', [GoogleDriveConfigController::class, 'oauthRedirect'])->name('integraciones.google-drive.oauth-redirect');
     Route::get('integraciones/google-drive/oauth/callback', [GoogleDriveConfigController::class, 'oauthCallback'])->name('integraciones.google-drive.oauth-callback');
     Route::post('integraciones/google-drive/oauth/disconnect', [GoogleDriveConfigController::class, 'oauthDisconnect'])->name('integraciones.google-drive.oauth-disconnect');
+    Route::post('integraciones/google-drive/oauth/test', [GoogleDriveConfigController::class, 'oauthTestConnection'])->name('integraciones.google-drive.oauth-test');
     Route::crud('role', RoleCrudController::class);
     Route::crud('permission', PermissionCrudController::class);
     Route::crud('cliente', ClienteCrudController::class);
@@ -68,15 +69,18 @@ Route::group([
     Route::post('empleado/import', [EmpleadoCrudController::class, 'import']);
     Route::get('empleado/template', [EmpleadoCrudController::class, 'template']);
     Route::crud('empleado-cargo', EmpleadoCargoCrudController::class);
+    Route::get('empleado-cargo/fetch/empleado', [EmpleadoCargoCrudController::class, 'fetchEmpleado']);
     Route::get('empleado-cargo/import', [EmpleadoCargoCrudController::class, 'importForm']);
     Route::post('empleado-cargo/import', [EmpleadoCargoCrudController::class, 'import']);
     Route::get('empleado-cargo/template', [EmpleadoCargoCrudController::class, 'template']);
     Route::crud('empleado-area', EmpleadoAreaCrudController::class);
+    Route::get('empleado-area/fetch/empleado', [EmpleadoAreaCrudController::class, 'fetchEmpleado']);
     Route::crud('programa', ProgramaCrudController::class);
     Route::crud('cie10', Cie10CrudController::class);
     Route::get('cie10/import', [Cie10CrudController::class, 'importForm']);
     Route::post('cie10/import', [Cie10CrudController::class, 'import']);
     Route::crud('programa-caso', ProgramaCasoCrudController::class);
+    Route::get('programa-caso/fetch/empleado', [ProgramaCasoCrudController::class, 'fetchEmpleado']);
     Route::post('programa-caso/{id}/accept', [ProgramaCasoCrudController::class, 'accept']);
     Route::post('programa-caso/{id}/probable', [ProgramaCasoCrudController::class, 'probable']);
     Route::post('programa-caso/{id}/reject', [ProgramaCasoCrudController::class, 'reject']);
@@ -93,6 +97,7 @@ Route::group([
     Route::get('ipt-template/{id}/builder', [IptTemplateCrudController::class, 'builder'])->whereNumber('id');
     Route::post('ipt-template/{id}/builder', [IptTemplateCrudController::class, 'builderSave'])->whereNumber('id');
     Route::crud('ipt-inspection', IptInspectionCrudController::class);
+    Route::get('ipt-inspection/fetch/empleado', [IptInspectionCrudController::class, 'fetchEmpleado']);
     Route::get('ipt-inspection/create-manual', [IptInspectionCrudController::class, 'createManual'])
         ->name('ipt-inspection.create-manual');
     Route::post('ipt-inspection/create-manual', [IptInspectionCrudController::class, 'storeManual'])
@@ -108,6 +113,8 @@ Route::group([
         ->name('ipt-inspection.matrix-download');
     Route::post('ipt-inspection/matriz/sync-drive', [IptInspectionCrudController::class, 'syncMatrixToDrive'])
         ->name('ipt-inspection.matrix-sync-drive');
+    Route::post('ipt-inspection/ipt-a-drive', [IptInspectionCrudController::class, 'syncIptToDrive'])
+        ->name('ipt-inspection.ipt-a-drive');
     Route::get('ipt-inspection/matriz/drive', [IptInspectionCrudController::class, 'openDriveMatrices'])
         ->name('ipt-inspection.matrix-open-drive');
     Route::crud('colombia-holiday', ColombiaHolidayCrudController::class);
@@ -121,6 +128,7 @@ Route::group([
     Route::get('osteo-template/{id}/builder', [OsteoTemplateCrudController::class, 'builder'])->whereNumber('id');
     Route::post('osteo-template/{id}/builder', [OsteoTemplateCrudController::class, 'builderSave'])->whereNumber('id');
     Route::crud('osteo-evaluation', OsteoEvaluationCrudController::class);
+    Route::get('osteo-evaluation/fetch/empleado', [OsteoEvaluationCrudController::class, 'fetchEmpleado']);
     Route::get('osteo-evaluation/create-manual', [OsteoEvaluationCrudController::class, 'createManual'])->name('osteo-evaluation.create-manual');
     Route::post('osteo-evaluation/create-manual', [OsteoEvaluationCrudController::class, 'storeManual'])->name('osteo-evaluation.store-manual');
     Route::get('programa-caso/{id}/osteo-evaluation/create', [OsteoEvaluationCrudController::class, 'createForCase'])->whereNumber('id');
@@ -169,6 +177,7 @@ Route::group([
     Route::crud('acta-seguimiento', ActaSeguimientoCrudController::class);
     Route::get('acta-ingreso/{id}/pdf', [ActaIngresoCrudController::class, 'pdf'])->whereNumber('id');
     Route::get('acta-seguimiento/{id}/pdf', [ActaSeguimientoCrudController::class, 'pdf'])->whereNumber('id');
+    Route::get('cie10/fetch', [Cie10LookupController::class, 'fetch']);
     Route::get('cie10/{id}/lookup', [Cie10LookupController::class, 'show'])->whereNumber('id');
 });
 

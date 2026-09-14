@@ -6,6 +6,7 @@
         'programaCaso.empleado.cliente',
         'programaCaso.empleado.sucursal',
         'template.sections.questions',
+        'template.requirements',
         'answers',
         'requirements.requirement',
         'initialInspection',
@@ -44,13 +45,16 @@
                 <div class="col-md-3"><strong>Puntaje:</strong> {{ $entry->puntaje_total }}</div>
                 <div class="col-md-3"><strong>Riesgo:</strong> {{ strtoupper((string) $entry->nivel_riesgo) }}</div>
                 <div class="col-md-3"><strong>Próximo seguimiento:</strong> {{ optional($entry->fecha_proximo_seguimiento_sugerida)->format('Y-m-d') ?: '—' }}</div>
-                <div class="col-md-3"><strong>Estado:</strong> {{ ucfirst((string) $entry->estado) }}</div>
+                @if(\App\Services\Ipt\IptFormLayout::showsEstado($entry->template ?? (object) []))
+                    <div class="col-md-3"><strong>Estado:</strong> {{ ucfirst((string) $entry->estado) }}</div>
+                @endif
             </div>
         </div>
 
+        @if($entry->template && \App\Services\Ipt\IptFormLayout::hasVisibleQuestionSections($entry->template))
         <div class="card p-4 mb-4">
             <h5>Respuestas</h5>
-            @foreach($entry->template->sections->sortBy('orden') as $section)
+            @foreach(\App\Services\Ipt\IptFormLayout::visibleQuestionSections($entry->template) as $section)
                 <div class="mt-3">
                     <h6>{{ $section->titulo }}</h6>
                     <div class="table-responsive">
@@ -63,7 +67,7 @@
                             </tr>
                             </thead>
                             <tbody>
-                            @foreach($section->questions->sortBy('orden') as $question)
+                            @foreach(\App\Services\Ipt\IptFormLayout::sectionQuestions($section)->sortBy('orden') as $question)
                                 @php $ans = $answersByQuestion->get($question->id); @endphp
                                 <tr>
                                     <td>{{ $question->texto }}</td>
@@ -77,7 +81,9 @@
                 </div>
             @endforeach
         </div>
+        @endif
 
+        @if($entry->template && \App\Services\Ipt\IptFormLayout::requirementsSectionIsVisible($entry->template))
         <div class="card p-4 mb-4">
             <h5>Requerimientos</h5>
             <ul class="mb-0">
@@ -88,18 +94,25 @@
                 @endforelse
             </ul>
         </div>
+        @endif
 
+        @if($entry->template && \App\Services\Ipt\IptFormLayout::captureNotesSectionIsVisible($entry->template))
         <div class="card p-4 mb-4">
             <h5>Observaciones y plan</h5>
-            <p><strong>Hallazgos:</strong><br>{{ $entry->hallazgos ?: '—' }}</p>
-            <p><strong>Recomendaciones:</strong><br>{{ $entry->recomendaciones ?: '—' }}</p>
-            @if($entry->template?->mostrar_accion)
+            @if(\App\Services\Ipt\IptFormLayout::showsHallazgosObservacionesField($entry->template))
+                <p><strong>{{ \App\Services\Ipt\IptFormLayout::hallazgosObservacionesLabel($entry->template) }}:</strong><br>{{ $entry->hallazgos ?: '—' }}</p>
+            @endif
+            @if(\App\Services\Ipt\IptFormLayout::showsRecomendaciones($entry->template))
+                <p><strong>Recomendaciones:</strong><br>{{ $entry->recomendaciones ?: '—' }}</p>
+            @endif
+            @if(\App\Services\Ipt\IptFormLayout::showsAccion($entry->template))
                 <p><strong>Acción:</strong><br>{{ $entry->accion ?: '—' }}</p>
             @endif
-            @if($entry->template?->mostrar_responsable)
+            @if(\App\Services\Ipt\IptFormLayout::showsResponsable($entry->template))
                 <p class="mb-0"><strong>Responsable:</strong> {{ $entry->responsable ?: '—' }}</p>
             @endif
         </div>
+        @endif
 
         @if(($entry->template?->evidencia_fotografica_modo ?? 'none') !== 'none')
             <div class="card p-4 mb-4">

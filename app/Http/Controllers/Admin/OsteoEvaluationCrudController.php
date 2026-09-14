@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\FetchesEmpleadosAjax;
 use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\Empleado;
 use App\Models\OsteoEvaluation;
@@ -23,6 +24,7 @@ use Throwable;
 class OsteoEvaluationCrudController extends CrudController
 {
     use TenantScope;
+    use FetchesEmpleadosAjax;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
@@ -111,15 +113,7 @@ class OsteoEvaluationCrudController extends CrudController
 
     public function createManual()
     {
-        $empleados = $this->scopedEmployeesQuery()
-            ->with(['cliente', 'sucursal'])
-            ->orderBy('nombre')
-            ->limit(500)
-            ->get();
-
-        return view('admin.osteo_evaluations.create_manual', [
-            'empleados' => $empleados,
-        ]);
+        return view('admin.osteo_evaluations.create_manual');
     }
 
     public function storeManual(Request $request)

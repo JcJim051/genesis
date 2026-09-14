@@ -26,21 +26,12 @@
                 @csrf
 
                 <div class="mb-3">
-                    <label for="empleado_id" class="form-label">Persona</label>
-                    <select id="empleado_id" name="empleado_id" class="form-control" required>
-                        <option value="">Selecciona una persona...</option>
-                        @foreach($empleados as $empleado)
-                            <option value="{{ $empleado->id }}" data-cliente-id="{{ (int) $empleado->cliente_id }}" @selected(old('empleado_id') == $empleado->id)>
-                                {{ $empleado->nombre }} · {{ $empleado->cedula }}
-                                @if($empleado->cliente?->nombre)
-                                    · {{ $empleado->cliente->nombre }}
-                                @endif
-                                @if($empleado->sucursal?->nombre)
-                                    · {{ $empleado->sucursal->nombre }}
-                                @endif
-                            </option>
-                        @endforeach
-                    </select>
+                    @include('admin.partials.empleado_select2_ajax', [
+                        'name' => 'empleado_id',
+                        'required' => true,
+                        'ajaxUrl' => backpack_url('ipt-inspection/fetch/empleado'),
+                    ])
+                    <div class="form-text">Escribe el nombre o la cédula para buscar.</div>
                     @error('empleado_id')
                         <div class="text-danger mt-1">{{ $message }}</div>
                     @enderror
@@ -79,7 +70,7 @@
 @endsection
 
 @push('after_scripts')
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    @include('admin.partials.empleado_select2_ajax_assets')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             if (!window.jQuery || !jQuery.fn.select2) return;
@@ -95,14 +86,21 @@
                 };
             }).get();
 
+            const selectedClienteId = () => {
+                const data = ($empleado.select2('data') || [])[0] || {};
+                if (data.cliente_id) {
+                    return parseInt(data.cliente_id, 10);
+                }
+                const option = $empleado.find('option:selected');
+                return parseInt(option.attr('data-cliente-id') || '0', 10);
+            };
+
             const refreshTemplatesByEmployee = () => {
-                const empleadoId = parseInt($empleado.val() || '0', 10);
-                const empleadoOption = $empleado.find('option[value="' + empleadoId + '"]');
-                const clienteId = parseInt(empleadoOption.attr('data-cliente-id') || '0', 10);
+                const clienteId = selectedClienteId();
                 const current = String($template.val() || '');
 
                 const filtered = originalTemplateOptions.filter((opt) => {
-                    if (!opt.value) return true; // placeholder
+                    if (!opt.value) return true;
                     if (!clienteId) return true;
                     return parseInt(opt.clienteId || 0, 10) === clienteId;
                 });
@@ -117,19 +115,9 @@
                 });
 
                 const hasCurrent = filtered.some((opt) => opt.value === current);
-                if (hasCurrent) {
-                    $template.val(current);
-                } else {
-                    $template.val('');
-                }
+                $template.val(hasCurrent ? current : '');
                 $template.trigger('change.select2');
             };
-
-            $empleado.select2({
-                width: '100%',
-                placeholder: 'Buscar persona por nombre, cédula, empresa o planta...',
-                allowClear: true
-            });
 
             $template.select2({
                 width: '100%',
@@ -137,7 +125,7 @@
                 allowClear: true
             });
 
-            $empleado.on('change', refreshTemplatesByEmployee);
+            $empleado.on('change select2:select select2:clear', refreshTemplatesByEmployee);
             refreshTemplatesByEmployee();
         });
     </script>

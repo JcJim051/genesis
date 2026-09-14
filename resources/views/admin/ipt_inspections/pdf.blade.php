@@ -1,5 +1,5 @@
 @php
-    $inspection->loadMissing(['template.sections.questions', 'answers', 'requirements.requirement', 'programaCaso.empleado.cliente', 'programaCaso.empleado.sucursal']);
+    $inspection->loadMissing(['template.sections.questions', 'template.requirements', 'answers', 'requirements.requirement', 'programaCaso.empleado.cliente', 'programaCaso.empleado.sucursal']);
     $answersByQuestion = $inspection->answers->keyBy('question_id');
 
     $imageData = function (?string $path) {
@@ -72,8 +72,10 @@
         <tr>
             <th>Próximo seguimiento</th>
             <td>{{ optional($inspection->fecha_proximo_seguimiento_sugerida)->format('Y-m-d') ?: '—' }}</td>
-            <th>Estado</th>
-            <td>{{ ucfirst((string) $inspection->estado) }}</td>
+            @if(\App\Services\Ipt\IptFormLayout::showsEstado($inspection->template ?? (object) []))
+                <th>Estado</th>
+                <td>{{ ucfirst((string) $inspection->estado) }}</td>
+            @endif
         </tr>
     </table>
 
@@ -124,8 +126,9 @@
         @endif
     @endif
 
+    @if($inspection->template && \App\Services\Ipt\IptFormLayout::hasVisibleQuestionSections($inspection->template))
     <h2>Respuestas</h2>
-    @foreach($inspection->template->sections->sortBy('orden') as $section)
+    @foreach(\App\Services\Ipt\IptFormLayout::visibleQuestionSections($inspection->template) as $section)
         <div style="margin-top:10px; font-weight:bold;">{{ $section->titulo }}</div>
         <table>
             <thead>
@@ -136,7 +139,7 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach($section->questions->sortBy('orden') as $question)
+                @foreach(\App\Services\Ipt\IptFormLayout::sectionQuestions($section)->sortBy('orden') as $question)
                     @php $ans = $answersByQuestion->get($question->id); @endphp
                     <tr>
                         <td>{{ $question->texto }}</td>
@@ -147,7 +150,9 @@
             </tbody>
         </table>
     @endforeach
+    @endif
 
+    @if($inspection->template && \App\Services\Ipt\IptFormLayout::requirementsSectionIsVisible($inspection->template))
     <h2>Requerimientos de estación</h2>
     <table>
         <thead>
@@ -167,30 +172,37 @@
             @endforelse
         </tbody>
     </table>
+    @endif
 
+    @if($inspection->template && \App\Services\Ipt\IptFormLayout::captureNotesSectionIsVisible($inspection->template))
     <h2>Hallazgos y plan</h2>
     <table>
-        <tr>
-            <th style="width:30%;">Hallazgos</th>
-            <td>{{ $inspection->hallazgos ?: '—' }}</td>
-        </tr>
-        <tr>
-            <th>Recomendaciones</th>
-            <td>{{ $inspection->recomendaciones ?: '—' }}</td>
-        </tr>
-        @if($inspection->template?->mostrar_accion)
+        @if(\App\Services\Ipt\IptFormLayout::showsHallazgosObservacionesField($inspection->template))
+            <tr>
+                <th style="width:30%;">{{ \App\Services\Ipt\IptFormLayout::hallazgosObservacionesLabel($inspection->template) }}</th>
+                <td>{{ $inspection->hallazgos ?: '—' }}</td>
+            </tr>
+        @endif
+        @if(\App\Services\Ipt\IptFormLayout::showsRecomendaciones($inspection->template))
+            <tr>
+                <th>Recomendaciones</th>
+                <td>{{ $inspection->recomendaciones ?: '—' }}</td>
+            </tr>
+        @endif
+        @if(\App\Services\Ipt\IptFormLayout::showsAccion($inspection->template))
             <tr>
                 <th>Acción</th>
                 <td>{{ $inspection->accion ?: '—' }}</td>
             </tr>
         @endif
-        @if($inspection->template?->mostrar_responsable)
+        @if(\App\Services\Ipt\IptFormLayout::showsResponsable($inspection->template))
             <tr>
                 <th>Responsable</th>
                 <td>{{ $inspection->responsable ?: '—' }}</td>
             </tr>
         @endif
     </table>
+    @endif
     <div class="genesis-watermark">
         @if(file_exists($genesisLogoPath))
             <img src="{{ $genesisLogoPath }}" alt="Genesis" style="height:10px; vertical-align:middle; margin-right:4px;">

@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Services\Google\GoogleSheetsMatrixService;
+use App\Services\Google\IptDriveLayout;
 use App\Support\IntegrationSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
 
 class GoogleDriveConfigController extends Controller
 {
@@ -13,9 +16,14 @@ class GoogleDriveConfigController extends Controller
     {
         abort_unless(backpack_user() && backpack_user()->hasAnyRole(['Administrador', 'Coordinador general']), 403);
 
+        $storedTemplate = trim((string) IntegrationSettings::get('google_drive.ipt_template_spreadsheet_id', ''));
+
         return view('admin.integrations.google_drive', [
             'enabled' => IntegrationSettings::get('google_drive.enabled', '0') === '1',
             'rootFolderId' => (string) IntegrationSettings::get('google_drive.root_folder_id', ''),
+            'iptTemplateSpreadsheetId' => $storedTemplate !== ''
+                ? $storedTemplate
+                : (string) config('services.google.ipt_template_spreadsheet_id', IptDriveLayout::DEFAULT_TEMPLATE_ID),
             'oauthClientId' => (string) IntegrationSettings::get('google_drive.oauth_client_id', ''),
             'oauthConnectedEmail' => (string) IntegrationSettings::get('google_drive.oauth_connected_email', ''),
             'oauthConnectedAt' => (string) IntegrationSettings::get('google_drive.oauth_connected_at', ''),
@@ -31,12 +39,17 @@ class GoogleDriveConfigController extends Controller
         $data = $request->validate([
             'enabled' => 'nullable|boolean',
             'root_folder_id' => 'nullable|string|max:255',
+            'ipt_template_spreadsheet_id' => 'nullable|string|max:255',
             'oauth_client_id' => 'nullable|string|max:255',
             'oauth_client_secret' => 'nullable|string|max:255',
         ]);
 
         IntegrationSettings::set('google_drive.enabled', (string) (isset($data['enabled']) ? 1 : 0));
         IntegrationSettings::set('google_drive.root_folder_id', trim((string) ($data['root_folder_id'] ?? '')));
+        IntegrationSettings::set(
+            'google_drive.ipt_template_spreadsheet_id',
+            IptDriveLayout::extractSpreadsheetId((string) ($data['ipt_template_spreadsheet_id'] ?? ''))
+        );
         IntegrationSettings::set('google_drive.oauth_client_id', trim((string) ($data['oauth_client_id'] ?? '')));
         IntegrationSettings::set('google_drive.oauth_last_error', '');
         IntegrationSettings::set('google_drive.oauth_last_debug', '');
@@ -189,5 +202,29 @@ class GoogleDriveConfigController extends Controller
         IntegrationSettings::set('google_drive.oauth_last_error', 'Conexión OAuth removida manualmente.');
         IntegrationSettings::set('google_drive.oauth_last_debug', '');
         return back()->with('success', 'Conexión OAuth desconectada.');
+    }
+
+    public function oauthTestConnection(GoogleSheetsMatrixService $sheets)
+    {
+        abort_unless(backpack_user() && backpack_user()->hasAnyRole(['Administrador', 'Coordinador general']), 403);
+
+        try {
+            $sheets->refreshAccessToken();
+            IntegrationSettings::set('google_drive.oauth_last_error', '');
+            IntegrationSettings::set('google_drive.oauth_last_debug', json_encode([
+                'step' => 'test_connection_success',
+                'has_access_token' => true,
+            ], JSON_UNESCAPED_UNICODE));
+
+            return back()->with('success', 'Conexión OAuth verificada. El token se renovó correctamente.');
+        } catch (RuntimeException $e) {
+            IntegrationSettings::set('google_drive.oauth_last_error', $e->getMessage());
+            IntegrationSettings::set('google_drive.oauth_last_debug', json_encode([
+                'step' => 'test_connection_failed',
+                'error' => $e->getMessage(),
+            ], JSON_UNESCAPED_UNICODE));
+
+            return back()->withErrors($e->getMessage());
+        }
     }
 }

@@ -208,6 +208,10 @@ class IptTemplateCrudController extends CrudController
             'evidencia_fotografica_modo' => 'required|in:none,before_after,general',
             'mostrar_accion' => 'nullable|boolean',
             'mostrar_responsable' => 'nullable|boolean',
+            'mostrar_hallazgos' => 'nullable|boolean',
+            'mostrar_observaciones' => 'nullable|boolean',
+            'mostrar_recomendaciones' => 'nullable|boolean',
+            'mostrar_estado' => 'nullable|boolean',
         ]);
 
         $targetClienteIds = collect($data['cliente_ids'] ?? [])
@@ -245,6 +249,10 @@ class IptTemplateCrudController extends CrudController
                     'evidencia_fotografica_modo' => $data['evidencia_fotografica_modo'] ?? 'none',
                     'mostrar_accion' => (bool) ($data['mostrar_accion'] ?? false),
                     'mostrar_responsable' => (bool) ($data['mostrar_responsable'] ?? false),
+                    'mostrar_hallazgos' => (bool) ($data['mostrar_hallazgos'] ?? false),
+                    'mostrar_observaciones' => (bool) ($data['mostrar_observaciones'] ?? false),
+                    'mostrar_recomendaciones' => (bool) ($data['mostrar_recomendaciones'] ?? false),
+                    'mostrar_estado' => (bool) ($data['mostrar_estado'] ?? false),
                 ]);
                 $template->save();
 
@@ -291,6 +299,10 @@ class IptTemplateCrudController extends CrudController
                 'evidencia_fotografica_modo' => $template->evidencia_fotografica_modo ?? 'none',
                 'mostrar_accion' => (bool) ($template->mostrar_accion ?? false),
                 'mostrar_responsable' => (bool) ($template->mostrar_responsable ?? false),
+                'mostrar_hallazgos' => (bool) ($template->mostrar_hallazgos ?? true),
+                'mostrar_observaciones' => (bool) ($template->mostrar_observaciones ?? true),
+                'mostrar_recomendaciones' => (bool) ($template->mostrar_recomendaciones ?? true),
+                'mostrar_estado' => (bool) ($template->mostrar_estado ?? true),
             ],
             'sections' => $template->sections->sortBy('orden')->values()->map(function ($section) {
                 return [
@@ -369,6 +381,10 @@ class IptTemplateCrudController extends CrudController
                 'evidencia_fotografica_modo' => (string) ($tplData['evidencia_fotografica_modo'] ?? 'none'),
                 'mostrar_accion' => (bool) ($tplData['mostrar_accion'] ?? false),
                 'mostrar_responsable' => (bool) ($tplData['mostrar_responsable'] ?? false),
+                'mostrar_hallazgos' => (bool) ($tplData['mostrar_hallazgos'] ?? true),
+                'mostrar_observaciones' => (bool) ($tplData['mostrar_observaciones'] ?? true),
+                'mostrar_recomendaciones' => (bool) ($tplData['mostrar_recomendaciones'] ?? true),
+                'mostrar_estado' => (bool) ($tplData['mostrar_estado'] ?? true),
             ]);
             $template->save();
 

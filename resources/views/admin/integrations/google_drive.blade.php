@@ -3,6 +3,21 @@
 @section('content')
 <div class="row">
     <div class="col-12 col-xl-8">
+        @if ($errors->any())
+            <div class="alert alert-danger mb-3">
+                <ul class="mb-0">
+                    @foreach ($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+        @if (session('success'))
+            <div class="alert alert-success mb-3">
+                {{ session('success') }}
+            </div>
+        @endif
+
         <div class="card p-4 mb-3">
             <h4 class="mb-1">Configuración Google Drive</h4>
             <p class="text-muted mb-0">Conecta Drive para generar y actualizar matrices colaborativas desde GENESIS.</p>
@@ -21,7 +36,7 @@
                     <pre style="white-space:pre-wrap; margin:0; font-size:12px;">{{ $oauthLastDebug }}</pre>
                 </div>
             @endif
-            <form method="POST">
+            <form method="POST" action="{{ route('integraciones.google-drive.update') }}">
                 @csrf
                 <div class="form-check form-switch mb-3">
                     <input class="form-check-input" type="checkbox" id="enabled" name="enabled" value="1" {{ $enabled ? 'checked' : '' }}>
@@ -31,7 +46,13 @@
                 <div class="mb-3">
                     <label class="form-label">ID carpeta raíz (Genesis)</label>
                     <input type="text" class="form-control" name="root_folder_id" value="{{ old('root_folder_id', $rootFolderId) }}" placeholder="1AbCdEfGhIjK...">
-                    <small class="text-muted">Ejemplo de estructura final: <strong>Genesis / {Empresa} / {Matrices}</strong></small>
+                    <small class="text-muted">La matriz por empresa sigue en <strong>{carpeta raíz} / {Empresa}</strong>. Las IPT individuales van a <strong>Genesis / {Empresa} / {AÑO} / {MES} / {Trabajador}</strong>.</small>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">ID plantilla IPT (Google Spreadsheet)</label>
+                    <input type="text" class="form-control" name="ipt_template_spreadsheet_id" value="{{ old('ipt_template_spreadsheet_id', $iptTemplateSpreadsheetId ?? '') }}" placeholder="1e6Lr0lzrctebCCr8J5PM8z27TUKVnraU">
+                    <small class="text-muted">Se copia este archivo (pestañas FORMATO IPT y SEGUIMIENTOS) a la carpeta del trabajador. Puedes pegar el ID o la URL completa.</small>
                 </div>
 
                 <h6 class="mb-2">Cuenta Google del profesional</h6>
@@ -49,33 +70,49 @@
                     URL de redirección autorizada en Google Cloud:<br>
                     <code>{{ route('integraciones.google-drive.oauth-callback') }}</code>
                 </div>
-                <div class="d-flex gap-2 align-items-center mb-3">
-                    <a class="btn btn-outline-primary btn-sm" href="{{ route('integraciones.google-drive.oauth-redirect') }}">
-                        <i class="la la-google"></i> Conectar cuenta Google
-                    </a>
-                    @if(!empty($oauthConnectedEmail))
-                        <form method="POST" action="{{ route('integraciones.google-drive.oauth-disconnect') }}">
-                            @csrf
-                            <button class="btn btn-outline-danger btn-sm" type="submit">
-                                <i class="la la-unlink"></i> Desconectar
-                            </button>
-                        </form>
-                    @endif
-                </div>
-                <div class="small text-muted mb-2">
-                    Cuenta conectada:
-                    @if(!empty($oauthConnectedEmail))
-                        <strong>{{ $oauthConnectedEmail }}</strong>
-                        ({{ $oauthConnectedAt ?: 'sin fecha' }})
-                    @else
-                        Sin conectar
-                    @endif
-                </div>
 
                 <button class="btn btn-primary" type="submit">
                     <i class="la la-save"></i> Guardar configuración
                 </button>
             </form>
+        </div>
+
+        <div class="card p-4 mb-3">
+            <h5 class="mb-3">Cuenta Google</h5>
+            <div class="small text-muted mb-3">
+                Cuenta conectada:
+                @if(!empty($oauthConnectedEmail))
+                    <strong>{{ $oauthConnectedEmail }}</strong>
+                    ({{ $oauthConnectedAt ?: 'sin fecha' }})
+                @else
+                    Sin conectar
+                @endif
+            </div>
+            @if(!empty($oauthConnectedEmail))
+                <div class="alert alert-info small mb-3">
+                    El estado <strong>Conectado</strong> significa que hay credenciales OAuth guardadas en GENESIS, no que Google siga aceptando el token.
+                    Si la sincronización falla con <code>invalid_grant</code>, pulsa <strong>Desconectar</strong> y vuelve a conectar la cuenta.
+                </div>
+            @endif
+            <div class="d-flex flex-wrap gap-2 align-items-center">
+                <a class="btn btn-outline-primary btn-sm" href="{{ route('integraciones.google-drive.oauth-redirect') }}">
+                    <i class="la la-google"></i> Conectar cuenta Google
+                </a>
+                @if(!empty($oauthConnectedEmail))
+                    <form method="POST" action="{{ route('integraciones.google-drive.oauth-disconnect') }}">
+                        @csrf
+                        <button class="btn btn-outline-danger btn-sm" type="submit">
+                            <i class="la la-unlink"></i> Desconectar
+                        </button>
+                    </form>
+                    <form method="POST" action="{{ route('integraciones.google-drive.oauth-test') }}">
+                        @csrf
+                        <button class="btn btn-outline-secondary btn-sm" type="submit">
+                            <i class="la la-plug"></i> Probar conexión
+                        </button>
+                    </form>
+                @endif
+            </div>
         </div>
     </div>
 
@@ -115,6 +152,10 @@
                     <span class="badge bg-success">Conectado</span>
                     <div class="mt-2 text-muted">{{ $oauthConnectedEmail }}</div>
                     <div class="text-muted">Conectado el: {{ $oauthConnectedAt ?: '-' }}</div>
+                    <p class="mt-2 mb-0 text-muted">
+                        «Conectado» indica credenciales guardadas, no un token válido en Google.
+                        Si falla con <code>invalid_grant</code>, desconecta y vuelve a conectar.
+                    </p>
                 @else
                     <span class="badge bg-secondary">Sin conectar</span>
                     <div class="mt-2 text-muted">Conecta la cuenta Google para habilitar la sincronización.</div>

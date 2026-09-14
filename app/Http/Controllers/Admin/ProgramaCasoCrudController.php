@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\FetchesEmpleadosAjax;
 use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\Empleado;
 use App\Models\Programa;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 class ProgramaCasoCrudController extends CrudController
 {
     use TenantScope;
+    use FetchesEmpleadosAjax;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation { update as traitUpdate; edit as traitEdit; }
@@ -213,15 +215,10 @@ class ProgramaCasoCrudController extends CrudController
 
     protected function setupCreateOperation(): void
     {
-        CRUD::field('empleado_id')
-            ->type('select')
-            ->label('Persona')
-            ->entity('empleado')
-            ->model(Empleado::class)
-            ->attribute('nombre');
+        CRUD::addField($this->empleadoSelect2AjaxField(backpack_url('programa-caso/fetch/empleado')));
 
         CRUD::field('programa_id')
-            ->type('select')
+            ->type('select2')
             ->label('Programa')
             ->entity('programa')
             ->model(Programa::class)
@@ -240,6 +237,17 @@ class ProgramaCasoCrudController extends CrudController
     protected function setupUpdateOperation(): void
     {
         $this->setupCreateOperation();
+    }
+
+    protected function authorizeEmpleadoAjaxFetch(): void
+    {
+        if (! backpack_user()) {
+            abort(403);
+        }
+
+        if (! $this->crud->hasAccess('create') && ! $this->crud->hasAccess('update')) {
+            abort(403);
+        }
     }
 
     protected function setupShowOperation(): void

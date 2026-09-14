@@ -51,23 +51,41 @@
                             <option value="general" @selected($modoEvidencia === 'general')>Una evidencia general</option>
                         </select>
                     </div>
-                    <div class="col-md-3 d-flex align-items-end">
-                        <label class="form-check">
-                            <input class="form-check-input" type="checkbox" name="mostrar_accion" value="1" @checked(old('mostrar_accion', $template->mostrar_accion ?? true))>
-                            <span class="form-check-label">Mostrar campo Acción</span>
-                        </label>
-                    </div>
-                    <div class="col-md-3 d-flex align-items-end">
-                        <label class="form-check">
-                            <input class="form-check-input" type="checkbox" name="mostrar_responsable" value="1" @checked(old('mostrar_responsable', $template->mostrar_responsable ?? true))>
-                            <span class="form-check-label">Mostrar campo Responsable</span>
-                        </label>
-                    </div>
                     <div class="col-md-2 d-flex align-items-end">
                         <label class="form-check">
                             <input class="form-check-input" type="checkbox" name="activo" value="1" @checked(old('activo', $template->activo ?? true))>
                             <span class="form-check-label">Activa</span>
                         </label>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label fw-semibold mb-2">Campos visibles en el formulario de inspección</label>
+                        <div class="d-flex flex-wrap gap-4">
+                            <label class="form-check">
+                                <input class="form-check-input" type="checkbox" name="mostrar_hallazgos" value="1" @checked(old('mostrar_hallazgos', $template->mostrar_hallazgos ?? true))>
+                                <span class="form-check-label">Mostrar hallazgos</span>
+                            </label>
+                            <label class="form-check">
+                                <input class="form-check-input" type="checkbox" name="mostrar_observaciones" value="1" @checked(old('mostrar_observaciones', $template->mostrar_observaciones ?? true))>
+                                <span class="form-check-label">Mostrar observaciones</span>
+                            </label>
+                            <label class="form-check">
+                                <input class="form-check-input" type="checkbox" name="mostrar_recomendaciones" value="1" @checked(old('mostrar_recomendaciones', $template->mostrar_recomendaciones ?? true))>
+                                <span class="form-check-label">Mostrar recomendaciones</span>
+                            </label>
+                            <label class="form-check">
+                                <input class="form-check-input" type="checkbox" name="mostrar_accion" value="1" @checked(old('mostrar_accion', $template->mostrar_accion ?? true))>
+                                <span class="form-check-label">Mostrar acción</span>
+                            </label>
+                            <label class="form-check">
+                                <input class="form-check-input" type="checkbox" name="mostrar_responsable" value="1" @checked(old('mostrar_responsable', $template->mostrar_responsable ?? true))>
+                                <span class="form-check-label">Mostrar responsable</span>
+                            </label>
+                            <label class="form-check">
+                                <input class="form-check-input" type="checkbox" name="mostrar_estado" value="1" @checked(old('mostrar_estado', $template->mostrar_estado ?? true))>
+                                <span class="form-check-label">Mostrar estado</span>
+                            </label>
+                        </div>
+                        <small class="text-muted d-block mt-1">Hallazgos y observaciones comparten el mismo recuadro en la inspección. Desmarca para ocultar el campo al diligenciar, ver o exportar PDF.</small>
                     </div>
                 </div>
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Traits\FetchesEmpleadosAjax;
 use App\Http\Controllers\Admin\Traits\TenantScope;
 use App\Models\IptInspection;
 use App\Models\IptInspectionAnswer;
@@ -11,9 +12,11 @@ use App\Models\Empleado;
 use App\Models\Programa;
 use App\Models\ProgramaCaso;
 use App\Services\Google\GoogleSheetsMatrixService;
+use App\Services\Google\IptDriveLayout;
 use App\Support\TenantSelection;
 use App\Support\IntegrationSettings;
 use App\Services\Ipt\BusinessDayService;
+use App\Services\Ipt\IptFormLayout;
 use App\Services\Ipt\IptScoringService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
@@ -32,6 +35,7 @@ use Throwable;
 class IptInspectionCrudController extends CrudController
 {
     use TenantScope;
+    use FetchesEmpleadosAjax;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
     use \Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation { show as traitShow; }
 
@@ -187,6 +191,7 @@ class IptInspectionCrudController extends CrudController
         $this->crud->addButtonFromView('top', 'ipt_inspection_matrix_open_drive', 'ipt_inspection_matrix_open_drive', 'beginning');
         $this->crud->addButtonFromView('top', 'ipt_inspection_matrix_download', 'ipt_inspection_matrix_download', 'beginning');
         $this->crud->addButtonFromView('top', 'ipt_inspection_matrix_sync_drive', 'ipt_inspection_matrix_sync_drive', 'beginning');
+        $this->crud->addButtonFromView('top', 'ipt_inspection_ipt_a_drive', 'ipt_inspection_ipt_a_drive', 'beginning');
         $this->crud->addButtonFromView('top', 'ipt_inspection_create_manual', 'ipt_inspection_create_manual', 'beginning');
     }
 
@@ -407,6 +412,60 @@ class IptInspectionCrudController extends CrudController
         return back();
     }
 
+    public function syncIptToDrive(GoogleSheetsMatrixService $service)
+    {
+        $inspections = $this->baseScopedQueryForList()
+            ->with([
+                'empleado.cliente',
+                'empleado.sucursal',
+                'empleado.cargos',
+                'empleado.areas',
+                'programaCaso.empleado.cliente',
+                'programaCaso.empleado.sucursal',
+                'template.sections.questions',
+                'answers',
+                'requirements.requirement',
+                'creator',
+                'initialInspection',
+            ])
+            ->orderBy('fecha_inspeccion', 'desc')
+            ->orderBy('id', 'desc')
+            ->get();
+
+        if ($inspections->isEmpty()) {
+            \Alert::warning('No hay inspecciones IPT en el alcance seleccionado para enviar a Drive.')->flash();
+            return back();
+        }
+
+        $ok = 0;
+        $errors = [];
+        $links = [];
+
+        foreach ($inspections as $inspection) {
+            try {
+                $result = $service->syncIptInspectionSheet($inspection);
+                $ok++;
+                $links[] = IptDriveLayout::formatIptSyncSuccessHtml($result);
+            } catch (Throwable $e) {
+                $errors[] = 'IPT #' . $inspection->id . ' → ' . $e->getMessage();
+            }
+        }
+
+        if ($ok > 0) {
+            \Alert::success("Sincronización IPT a Drive completada. Hojas actualizadas: {$ok}.")->flash();
+        }
+
+        if (! empty($links)) {
+            \Alert::info(implode('<br><br>', $links))->flash();
+        }
+
+        if (! empty($errors)) {
+            \Alert::error('Errores en sincronización IPT a Drive:<br>' . implode('<br>', array_map(fn ($x) => e($x), $errors)))->flash();
+        }
+
+        return back();
+    }
+
     public function openDriveMatrices()
     {
         $inspections = $this->baseScopedQueryForList()
@@ -480,12 +539,6 @@ class IptInspectionCrudController extends CrudController
 
     public function createManual()
     {
-        $empleados = $this->scopedEmployeesQuery()
-            ->with(['cliente', 'sucursal'])
-            ->orderBy('nombre')
-            ->limit(500)
-            ->get();
-
         $templatePoolQuery = IptTemplate::query()
             ->where('activo', true);
 
@@ -498,7 +551,6 @@ class IptInspectionCrudController extends CrudController
             ->get(['id', 'cliente_id', 'nombre_publico', 'codigo', 'segmento']);
 
         return view('admin.ipt_inspections.create_manual', [
-            'empleados' => $empleados,
             'templatePool' => $templatePool,
         ]);
     }
@@ -673,11 +725,11 @@ class IptInspectionCrudController extends CrudController
             'foto_antes' => $fotoAntesRule,
             'foto_despues' => $fotoDespuesRule,
             'foto_general' => $fotoGeneralRule,
-            'hallazgos' => 'nullable|string',
-            'recomendaciones' => 'nullable|string',
-            'accion' => ($template->mostrar_accion ? 'nullable' : 'prohibited') . '|string',
-            'responsable' => ($template->mostrar_responsable ? 'nullable' : 'prohibited') . '|string|max:255',
-            'estado' => 'nullable|in:abierto,cerrado',
+            'hallazgos' => (IptFormLayout::showsHallazgosObservacionesField($template) ? 'nullable' : 'prohibited') . '|string',
+            'recomendaciones' => (IptFormLayout::showsRecomendaciones($template) ? 'nullable' : 'prohibited') . '|string',
+            'accion' => (IptFormLayout::showsAccion($template) ? 'nullable' : 'prohibited') . '|string',
+            'responsable' => (IptFormLayout::showsResponsable($template) ? 'nullable' : 'prohibited') . '|string|max:255',
+            'estado' => IptFormLayout::showsEstado($template) ? 'nullable|in:abierto,cerrado' : 'prohibited',
             'seguimiento_exitoso' => 'nullable|in:0,1',
             'answers' => 'required|array',
             'answers.*' => 'nullable|in:si,no,na',
@@ -705,7 +757,11 @@ class IptInspectionCrudController extends CrudController
                 ->toDateString();
         }
 
-        DB::transaction(function () use ($editing, $programaCaso, $template, $tipo, $initial, $validation, $scoring, $risk, $followupDate, $fechaInspeccion) {
+        $estado = IptFormLayout::showsEstado($template)
+            ? ($validation['estado'] ?? 'abierto')
+            : ($editing?->estado ?? 'abierto');
+
+        DB::transaction(function () use ($editing, $programaCaso, $template, $tipo, $initial, $validation, $scoring, $risk, $followupDate, $fechaInspeccion, $estado) {
             $inspection = $editing ?: new IptInspection();
 
             $fotoAntesPath = $inspection->foto_antes;
@@ -748,11 +804,11 @@ class IptInspectionCrudController extends CrudController
                 'foto_antes' => $fotoAntesPath,
                 'foto_despues' => $fotoDespuesPath,
                 'foto_general' => $fotoGeneralPath,
-                'hallazgos' => $validation['hallazgos'] ?? null,
-                'recomendaciones' => $validation['recomendaciones'] ?? null,
-                'accion' => $template->mostrar_accion ? ($validation['accion'] ?? null) : null,
-                'responsable' => $template->mostrar_responsable ? ($validation['responsable'] ?? null) : null,
-                'estado' => $validation['estado'] ?? 'abierto',
+                'hallazgos' => IptFormLayout::showsHallazgosObservacionesField($template) ? ($validation['hallazgos'] ?? null) : null,
+                'recomendaciones' => IptFormLayout::showsRecomendaciones($template) ? ($validation['recomendaciones'] ?? null) : null,
+                'accion' => IptFormLayout::showsAccion($template) ? ($validation['accion'] ?? null) : null,
+                'responsable' => IptFormLayout::showsResponsable($template) ? ($validation['responsable'] ?? null) : null,
+                'estado' => $estado,
                 'seguimiento_exitoso' => array_key_exists('seguimiento_exitoso', $validation)
                     ? (int) $validation['seguimiento_exitoso'] === 1
                     : null,

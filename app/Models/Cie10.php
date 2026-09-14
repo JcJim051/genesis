@@ -15,4 +15,9 @@ class Cie10 extends Model
         'codigo',
         'diagnostico',
     ];
+
+    public function selectLabel(): string
+    {
+        return trim($this->codigo . ' - ' . $this->diagnostico);
+    }
 }

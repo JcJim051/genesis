@@ -53,7 +53,7 @@ class ActaIngresoCrudController extends CrudController
             ->default(backpack_user()?->id);
 
         CRUD::field('reincorporacion_id')
-            ->type('select')
+            ->type('select2')
             ->label('Reincorporación')
             ->entity('reincorporacion')
             ->model(Reincorporacion::class)
